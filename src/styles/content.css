@@ -1,0 +1,37 @@
+/* Content script styles - loaded on every page */
+
+/* Ensure our root element doesn't interfere with page styles */
+#job-optimizer-root {
+  all: initial;
+  * {
+    all: unset;
+  }
+}
+
+/* Notification bubble for job pages */
+#job-optimizer-indicator {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Manual selection overlay */
+.job-optimizer-selection-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  z-index: 2147483646 !important;
+  cursor: crosshair !important;
+}

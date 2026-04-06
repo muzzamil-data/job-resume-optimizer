@@ -1,0 +1,42 @@
+{
+  "name": "job-resume-optimizer",
+  "version": "1.0.0",
+  "description": "AI-powered resume optimizer and cover letter generator for job applications",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tailwindcss -i ./src/styles/globals.css -o ./style.css && vite build && copy style.css dist\\style.css",
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report e2e/report"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.20.0",
+    "@supabase/supabase-js": "^2.99.3",
+    "clsx": "^2.1.0",
+    "docx": "^8.5.0",
+    "jspdf": "^4.2.0",
+    "lucide-react": "^0.263.1",
+    "mammoth": "^1.6.0",
+    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^5.4.624",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tailwind-merge": "^2.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/chrome": "^0.0.256",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.0",
+    "vite-plugin-web-extension": "^4.5.0"
+  }
+}

@@ -1,0 +1,22 @@
+node_modules/
+dist/
+*.zip
+.env.local
+.env
+.env.*.local
+
+# Test output
+test-results/
+playwright-report/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
