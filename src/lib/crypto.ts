@@ -1,14 +1,12 @@
 /**
- * AES-GCM-256 encryption using a session key.
+ * AES-GCM-256 encryption with a device-bound key.
  *
- * The key is generated once per browser session and stored only in
- * chrome.storage.local — which is in-memory and cleared when the browser
- * closes. It is never written to disk, so encrypted data at rest cannot be
- * read without the live session key.
- *
- * If the browser is restarted, a new key is generated and any previously
- * encrypted data becomes unreadable. The user will need to re-upload their
- * resume to create a new encrypted copy for the new session.
+ * A 256-bit AES-GCM key is generated once and persisted in
+ * chrome.storage.local (on-disk, scoped to this extension). Both the key and
+ * the encrypted data live in extension storage, so resume content is never
+ * stored in plaintext. The key survives browser restarts within the same
+ * Chrome profile; if extension storage is cleared, all encrypted data becomes
+ * unreadable and the user must re-upload their resume.
  */
 
 const SESSION_KEY_NAME = '_resumeEncKey';
@@ -82,7 +80,7 @@ export async function decryptText(payload: string): Promise<string> {
     return new TextDecoder().decode(decrypted);
   } catch {
     throw new Error(
-      'Session expired — your resume data was encrypted with a previous session key. ' +
+      'Your resume data could not be decrypted (extension storage may have been cleared). ' +
       'Please re-upload your resume.'
     );
   }

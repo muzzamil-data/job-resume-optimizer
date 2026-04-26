@@ -11,12 +11,18 @@ export const PasteJobView: React.FC = () => {
   const inputCls = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary';
 
   const handleSave = () => {
-    const href = window.location.href;
+    let validUrl = '';
+    try {
+      const parsed = new URL(window.location.href);
+      if (parsed.protocol === 'https:') validUrl = parsed.href;
+    } catch {
+      // invalid URL — leave empty
+    }
     setJobDescription({
       title,
       company: company || 'Unknown Company',
       description,
-      url: href.startsWith('https://') ? href : '',
+      url: validUrl,
       requirements: [],
       keywords: [],
     });

@@ -2,12 +2,54 @@ import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
 import type { ParsedResume, Resume } from '../types';
 
+type PdfTextItem = { str: string; transform: number[] };
+type ParsedResumeResponse = { success: boolean; data?: Partial<ParsedResume>; error?: string };
+
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+
 // Point worker to Chrome extension resource
 pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('pdf.worker.min.mjs');
 
+async function readMagicBytes(file: File, count: number): Promise<Uint8Array> {
+  const slice = file.slice(0, count);
+  return new Uint8Array(await slice.arrayBuffer());
+}
+
+function isPDF(bytes: Uint8Array): boolean {
+  // %PDF magic bytes: 0x25 0x50 0x44 0x46
+  return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+}
+
+function isDOCX(bytes: Uint8Array): boolean {
+  // PK zip header: 0x50 0x4B 0x03 0x04
+  return bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04;
+}
+
 export class ResumeParser {
   async parseFile(file: File): Promise<Resume> {
-    const fileType = file.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'docx';
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      throw new Error('File is too large. Please upload a resume under 10 MB.');
+    }
+
+    if (!ALLOWED_MIME_TYPES.has(file.type)) {
+      throw new Error('Unsupported file type. Please upload a PDF or DOCX file.');
+    }
+
+    const magic = await readMagicBytes(file, 4);
+    const isPdf = file.type === 'application/pdf';
+    if (isPdf && !isPDF(magic)) {
+      throw new Error('File does not appear to be a valid PDF.');
+    }
+    if (!isPdf && !isDOCX(magic)) {
+      throw new Error('File does not appear to be a valid DOCX.');
+    }
+
+    const fileType = isPdf ? 'pdf' : 'docx';
     let rawText: string;
 
     if (fileType === 'docx') {
@@ -50,7 +92,7 @@ export class ResumeParser {
       // Preserve line breaks using transform y-position
       let lastY: number | null = null;
       const lineChunks: string[] = [];
-      for (const item of content.items as any[]) {
+      for (const item of content.items as PdfTextItem[]) {
         if (lastY !== null && Math.abs(item.transform[5] - lastY) > 2) {
           lineChunks.push('\n');
         }
@@ -67,7 +109,7 @@ export class ResumeParser {
     // Try AI parsing first — it handles all resume formats correctly
     try {
       const truncated = rawText.slice(0, 6000);
-      const response: { success: boolean; data?: any; error?: string } =
+      const response: ParsedResumeResponse =
         await chrome.runtime.sendMessage({
           action: 'parseResume',
           payload: { rawText: truncated },

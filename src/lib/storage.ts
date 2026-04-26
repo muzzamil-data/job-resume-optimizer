@@ -22,6 +22,15 @@ interface StoredResume {
   encryptedData: string;   // encrypted JSON of { content, parsedData }
 }
 
+/**
+ * Shape written to chrome.storage.local for an optimized resume.
+ * optimizedContent contains the candidate's full PII-rich resume, so it is
+ * AES-GCM encrypted the same way as the original resume.
+ */
+interface StoredOptimizedResume extends Omit<OptimizedResume, 'optimizedContent'> {
+  encryptedContent: string;  // encrypted JSON of optimizedContent
+}
+
 const STORAGE_KEYS = {
   RESUME: 'masterResume',
   CREDITS: 'creditBalance',
@@ -130,12 +139,29 @@ export const storage = {
   // Optimized Resumes
   async getOptimizedResumes(): Promise<OptimizedResume[]> {
     const result = await chrome.storage.local.get(STORAGE_KEYS.OPTIMIZED_RESUMES);
-    return result[STORAGE_KEYS.OPTIMIZED_RESUMES] || [];
+    const stored: StoredOptimizedResume[] = result[STORAGE_KEYS.OPTIMIZED_RESUMES] || [];
+    const decrypted: OptimizedResume[] = [];
+    for (const item of stored) {
+      // Legacy: unencrypted records saved before this version
+      if (!item.encryptedContent) {
+        decrypted.push(item as unknown as OptimizedResume);
+        continue;
+      }
+      const json = await decryptText(item.encryptedContent);
+      const optimizedContent = JSON.parse(json);
+      const { encryptedContent: _, ...rest } = item;
+      decrypted.push({ ...rest, optimizedContent });
+    }
+    return decrypted;
   },
 
   async saveOptimizedResume(resume: OptimizedResume): Promise<void> {
-    const resumes = await this.getOptimizedResumes();
-    const capped = [...resumes, resume].slice(-10); // keep latest 10 only
+    const existing = await chrome.storage.local.get(STORAGE_KEYS.OPTIMIZED_RESUMES);
+    const stored: StoredOptimizedResume[] = existing[STORAGE_KEYS.OPTIMIZED_RESUMES] || [];
+    const encryptedContent = await encryptText(JSON.stringify(resume.optimizedContent));
+    const { optimizedContent: _, ...rest } = resume;
+    const toStore: StoredOptimizedResume = { ...rest, encryptedContent };
+    const capped = [...stored, toStore].slice(-10); // keep latest 10 only
     await chrome.storage.local.set({
       [STORAGE_KEYS.OPTIMIZED_RESUMES]: capped,
     });

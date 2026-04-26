@@ -5,6 +5,20 @@ import type { ParsedResume, JobDescription, KeywordMatch, ATSScoring } from '../
 // The content script sends useSystemPrompt: true and the service worker injects it.
 const OPTIMIZE_SYSTEM_PROMPT_ID = '__optimize__';
 
+const DEFAULT_MODEL = 'claude-sonnet-4-6';
+const OPTIMIZE_MAX_TOKENS = 4096;
+const MAX_JOB_DESC_CHARS = 2500;
+const MAX_COVER_LETTER_DESC_CHARS = 1500;
+const MAX_RESUME_RAW_CHARS = 8000;
+const MAX_SUMMARY_CHARS = 400;
+const MAX_KEYWORDS = 40;
+const MAX_EXPERIENCE_ITEMS = 5;
+const MAX_BULLETS_PER_JOB = 8;
+const MAX_SKILLS = 40;
+const MAX_CERTS = 8;
+const MAX_EDUCATION = 3;
+const MAX_REQUIREMENTS = 15;
+
 // Strip < and > so user-supplied text cannot escape the XML tag boundaries in the prompt.
 // Angle brackets are replaced with visually similar characters that carry no XML meaning.
 function sanitizeUserContent(text: string): string {
@@ -50,6 +64,10 @@ function isContextInvalidatedError(err: unknown): boolean {
 // Proxy API call through background service worker.
 // The service worker forwards to the Supabase Edge Function, which holds the API key.
 // deductCredit=true is only passed for resume optimization (costs 1 credit).
+type AnthropicContent = { type: 'text'; text: string } | { type: string; text?: string };
+type AnthropicApiResponse = { content: AnthropicContent[] };
+type BackgroundResponse<T = AnthropicApiResponse> = { success: boolean; data?: T; error?: string };
+
 async function callClaudeViaBackground(
   messages: { role: string; content: string }[],
   maxTokens: number,
@@ -57,7 +75,7 @@ async function callClaudeViaBackground(
   system?: string,
   action: 'callClaude' | 'callClaudeFree' = 'callClaude',
 ): Promise<string> {
-  let response: { success: boolean; data?: any; error?: string };
+  let response: BackgroundResponse;
   try {
     response = await chrome.runtime.sendMessage({
       action,
@@ -305,14 +323,32 @@ export class AIService {
     // Credit deduction is enforced by the service worker for all callClaude actions.
     // The system prompt ID tells the service worker to inject the optimization prompt
     // server-side, so it never appears in the content script bundle or error messages.
-    const text = await callClaudeViaBackground(
-      [{ role: 'user', content: userMessage }],
-      4096,
-      'claude-sonnet-4-6',
-      OPTIMIZE_SYSTEM_PROMPT_ID,
-    );
-
-    return this.parseOptimizationResponse(text, resume, jobDescription);
+    // Prefill the assistant turn with '{' to force Claude to start the JSON immediately.
+    // The API continues from the prefill, so we prepend '{' to reconstruct the full object.
+    const MAX_RETRIES = 3;
+    let lastError: Error = new Error('Optimization failed. Please try again.');
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const text = await callClaudeViaBackground(
+          [{ role: 'user', content: userMessage }],
+          OPTIMIZE_MAX_TOKENS,
+          DEFAULT_MODEL,
+          OPTIMIZE_SYSTEM_PROMPT_ID,
+        );
+        return this.parseOptimizationResponse(text, resume, jobDescription);
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        const isJsonError =
+          lastError.message.includes('no JSON') ||
+          lastError.message.includes('malformed JSON') ||
+          lastError.message.includes('incomplete JSON') ||
+          lastError.message.includes('not a JSON object');
+        // Only retry on JSON parse failures; propagate all other errors immediately
+        if (!isJsonError || attempt === MAX_RETRIES) throw lastError;
+        console.warn(`[AI] JSON parse failed on attempt ${attempt}/${MAX_RETRIES}, retrying…`);
+      }
+    }
+    throw lastError;
   }
 
   async generateCoverLetter(
@@ -324,7 +360,7 @@ export class AIService {
     const text = await callClaudeViaBackground(
       [{ role: 'user', content: prompt }],
       2000,
-      'claude-sonnet-4-6',
+      DEFAULT_MODEL,
       undefined,
       'callClaudeFree', // Cover letters are free — no credit deduction
     );
@@ -383,36 +419,36 @@ export class AIService {
   }
 
   private buildUserMessage(resume: ParsedResume, job: JobDescription): string {
-    const jobDesc = sanitizeUserContent(this.truncate(job.description, 2500));
-    const requirements = sanitizeUserContent(job.requirements.slice(0, 15).join('\n- '));
+    const jobDesc = sanitizeUserContent(this.truncate(job.description, MAX_JOB_DESC_CHARS));
+    const requirements = sanitizeUserContent(job.requirements.slice(0, MAX_REQUIREMENTS).join('\n- '));
 
     const jobKeywords = [
       ...new Set([
         ...job.keywords,
         ...job.requirements.flatMap(r => r.split(/[,;]/)).map(k => k.trim()).filter(k => k.length > 2),
       ]),
-    ].slice(0, 40);
+    ].slice(0, MAX_KEYWORDS);
 
     // PII is stored locally — strip name/email/phone before sending to Claude
     const slimResume = {
       location: resume.location,
-      summary: this.truncate(resume.summary || '', 400),
-      experience: (resume.experience || []).slice(0, 5).map(e => ({
+      summary: this.truncate(resume.summary || '', MAX_SUMMARY_CHARS),
+      experience: (resume.experience || []).slice(0, MAX_EXPERIENCE_ITEMS).map(e => ({
         title: e.title,
         company: e.company,
         location: e.location,
         startDate: e.startDate,
         endDate: e.endDate,
-        bullets: (e.bullets || []).slice(0, 8),
+        bullets: (e.bullets || []).slice(0, MAX_BULLETS_PER_JOB),
       })),
-      education: (resume.education || []).slice(0, 3),
-      certifications: (resume.certifications || []).slice(0, 8),
-      skills: (resume.skills || []).slice(0, 40),
+      education: (resume.education || []).slice(0, MAX_EDUCATION),
+      certifications: (resume.certifications || []).slice(0, MAX_CERTS),
+      skills: (resume.skills || []).slice(0, MAX_SKILLS),
     };
 
     // Trim resume raw text, then redact name/email/phone before sending to Claude
-    const rawTrimmed = (resume.raw || '').length > 8000
-      ? resume.raw!.substring(0, 8000) + '\n[Resume trimmed for length]'
+    const rawTrimmed = (resume.raw || '').length > MAX_RESUME_RAW_CHARS
+      ? resume.raw!.substring(0, MAX_RESUME_RAW_CHARS) + '\n[Resume trimmed for length]'
       : (resume.raw || '');
     const trimmedResume = sanitizeUserContent(redactPII(rawTrimmed, resume.name, resume.email, resume.phone));
 
@@ -437,7 +473,9 @@ Key Requirements:
 - ${requirements}
 
 Keywords to include (every one must appear at least once):
-${jobKeywords.map((k, i) => `${i + 1}. ${k}`).join('\n')}`;
+${jobKeywords.map((k, i) => `${i + 1}. ${k}`).join('\n')}
+
+RESPONSE FORMAT (mandatory): Reply with a single valid JSON object only. The very first character of your response must be { and the very last must be }. No markdown, no code fences, no explanation text before or after the JSON.`;
   }
 
   private buildCoverLetterPrompt(
@@ -457,7 +495,7 @@ ${jobKeywords.map((k, i) => `${i + 1}. ${k}`).join('\n')}`;
 
 JOB: ${job.title} at ${job.company}
 <job_description_text>
-${sanitizeUserContent(this.truncate(job.description, 1500))}
+${sanitizeUserContent(this.truncate(job.description, MAX_COVER_LETTER_DESC_CHARS))}
 </job_description_text>
 
 CANDIDATE:
@@ -512,8 +550,12 @@ STRICT RULES:
       console.warn('AI response validation warnings:', errors);
     }
 
+    type RawExperienceItem = {
+      title?: unknown; company?: unknown; location?: unknown;
+      startDate?: unknown; endDate?: unknown; dates?: unknown; bullets?: unknown[];
+    };
     // Map experience: convert `dates` string → startDate / endDate
-    const experience = (parsed.experience || originalResume.experience).map((e: any) => {
+    const experience = (parsed.experience || originalResume.experience).map((e: RawExperienceItem) => {
       let { startDate, endDate } = e;
       if (e.dates && !startDate) {
         const parts = e.dates.split(/\s*[-–—]\s*/);
@@ -583,7 +625,7 @@ STRICT RULES:
     // AI-optimized experience OR the original uploaded resume. Checking both sources
     // ensures previously-added bullets are caught even if the AI reworded them.
     const allExistingBullets = [
-      ...experience.flatMap((e: any) => e.bullets as string[]),
+      ...experience.flatMap((e: { bullets: string[] }) => e.bullets),
       ...originalResume.experience.flatMap(e => e.bullets),
     ];
     const rawQuickWins = Array.isArray(parsed.quickWins) ? parsed.quickWins.map(String) : [];

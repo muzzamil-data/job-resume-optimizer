@@ -1,6 +1,21 @@
 import type { JobDescription } from '../types';
 import { sleep } from './utils';
 
+const SPA_HYDRATE_DELAY_MS = 1500;
+const SPA_HYDRATE_RETRY_DELAY_MS = 2000;
+const AI_PAGE_TEXT_LIMIT = 5000;
+const MIN_PAGE_TEXT_LENGTH = 150;
+
+type ScrapedJobData = {
+  isJobPosting?: boolean;
+  title?: string;
+  company?: string;
+  description?: string;
+  requirements?: string[];
+  keywords?: string[];
+};
+type AiScrapeResponse = { success: boolean; data?: ScrapedJobData; error?: string };
+
 export class JobScraper {
   async scrapeCurrentPage(): Promise<JobDescription | null> {
     const url = window.location.href;
@@ -10,12 +25,12 @@ export class JobScraper {
 
     if (!jobData) {
       // Wait for SPA content to hydrate
-      await sleep(1500);
+      await sleep(SPA_HYDRATE_DELAY_MS);
       jobData = this.tryAllScrapers();
     }
 
     if (!jobData) {
-      await sleep(2000);
+      await sleep(SPA_HYDRATE_RETRY_DELAY_MS);
       jobData = this.tryAllScrapers();
     }
 
@@ -28,6 +43,7 @@ export class JobScraper {
       return { ...jobData, url } as JobDescription;
     }
 
+    console.warn('[JobScraper] All scrapers and AI fallback failed for:', url);
     return null;
   }
 
@@ -449,14 +465,14 @@ export class JobScraper {
     try {
       const pageText = this.extractPageText();
       // Only bother if the page looks like it might be a job posting
-      if (pageText.length < 150) return null;
+      if (pageText.length < MIN_PAGE_TEXT_LENGTH) return null;
       const hasJobSignals = /\b(apply|requirements?|qualifications?|responsibilities|salary|position|hiring|vacancy|role|candidate)\b/i.test(pageText);
       if (!hasJobSignals) return null;
 
-      const response: { success: boolean; data?: any; error?: string } =
+      const response: AiScrapeResponse =
         await chrome.runtime.sendMessage({
           action: 'scrapeJobWithAI',
-          payload: { pageText: pageText.slice(0, 5000) },
+          payload: { pageText: pageText.slice(0, AI_PAGE_TEXT_LIMIT) },
         });
 
       if (!response.success || !response.data?.isJobPosting) return null;
@@ -469,7 +485,10 @@ export class JobScraper {
         requirements: data.requirements || [],
         keywords: this.extractKeywords(data.description || ''),
       };
-    } catch { return null; }
+    } catch (err) {
+      console.warn('[JobScraper] AI fallback failed:', err);
+      return null;
+    }
   }
 
   /** Extracts all meaningful visible text from the page, stripping nav/footer/scripts */
@@ -481,7 +500,10 @@ export class JobScraper {
         .replace(/[ \t]+/g, ' ')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
-    } catch { return ''; }
+    } catch (err) {
+      console.warn('[JobScraper] extractPageText failed:', err);
+      return '';
+    }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

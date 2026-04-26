@@ -17,6 +17,10 @@ export const AuthView: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!email || !password) { setAuthError('Please enter your email and password.'); return; }
+    if (mode === 'signup' && password.length < 8) {
+      setAuthError('Password must be at least 8 characters.');
+      return;
+    }
     setIsSubmitting(true);
     setAuthError('');
 

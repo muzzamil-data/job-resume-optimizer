@@ -9,8 +9,8 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://*/*",
-    "https://*.supabase.co/*"
+    "https://*.supabase.co/*",
+    "https://api.anthropic.com/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
@@ -45,7 +45,17 @@
   "web_accessible_resources": [
     {
       "resources": ["style.css", "src/styles/content.css", "pdf.worker.min.mjs"],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "*://*.linkedin.com/*",
+        "*://*.indeed.com/*",
+        "*://*.glassdoor.com/*",
+        "*://*.greenhouse.io/*",
+        "*://*.lever.co/*",
+        "*://*.myworkdayjobs.com/*",
+        "*://*.workday.com/*",
+        "*://*.ziprecruiter.com/*",
+        "*://*.monster.com/*"
+      ]
     }
   ]
 }

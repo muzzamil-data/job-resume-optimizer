@@ -24,9 +24,7 @@ export class ErrorBoundary extends Component<
   componentDidCatch(error: Error) {
     // Don't try to log to Supabase if the extension context is dead
     if (isContextInvalidated()) return;
-    logError('react_boundary', null, 'render_error', error.message, {
-      stack: error.stack?.slice(0, 500),
-    });
+    logError('react_boundary', null, 'render_error', error.message, {});
   }
   render() {
     if (this.state.error) {
@@ -59,7 +57,7 @@ export class ErrorBoundary extends Component<
           <AlertTriangle size={32} className="text-red-500" />
           <div>
             <p className="text-base font-bold text-slate-800 mb-1">Something went wrong</p>
-            <p className="text-sm text-slate-500 mb-3">{this.state.error.message}</p>
+            <p className="text-sm text-slate-500 mb-3">An unexpected error occurred. Please try again.</p>
             <button
               onClick={() => this.setState({ error: null })}
               className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90"
