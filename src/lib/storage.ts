@@ -31,6 +31,23 @@ interface StoredOptimizedResume extends Omit<OptimizedResume, 'optimizedContent'
   encryptedContent: string;  // encrypted JSON of optimizedContent
 }
 
+/**
+ * Shape written to chrome.storage.local for a cover letter.
+ * content contains PII (candidate name, job details), so it is AES-GCM encrypted.
+ */
+interface StoredCoverLetter extends Omit<CoverLetter, 'content'> {
+  encryptedContent: string;  // encrypted cover letter text
+}
+
+/**
+ * Shape written to chrome.storage.local for an application record.
+ * jobTitle, company, url, and notes are AES-GCM encrypted.
+ * id and status are kept plaintext for O(1) lookup and status updates.
+ */
+interface StoredApplicationRecord extends Omit<ApplicationRecord, 'jobTitle' | 'company' | 'url' | 'notes'> {
+  encryptedData: string;  // encrypted JSON of { jobTitle, company, url, notes }
+}
+
 const STORAGE_KEYS = {
   RESUME: 'masterResume',
   CREDITS: 'creditBalance',
@@ -70,8 +87,12 @@ export const storage = {
     const stored: StoredResume | null = result[STORAGE_KEYS.RESUME] || null;
     if (!stored) return null;
 
-    // Legacy: unencrypted data saved before this version
-    if (!stored.encryptedData) return stored as unknown as Resume;
+    // Legacy: unencrypted data saved before this version — migrate on read
+    if (!stored.encryptedData) {
+      const legacy = stored as unknown as Resume;
+      await this.saveResume(legacy);
+      return legacy;
+    }
 
     const decrypted = await decryptText(stored.encryptedData);
     const { content, parsedData } = JSON.parse(decrypted);
@@ -141,9 +162,11 @@ export const storage = {
     const result = await chrome.storage.local.get(STORAGE_KEYS.OPTIMIZED_RESUMES);
     const stored: StoredOptimizedResume[] = result[STORAGE_KEYS.OPTIMIZED_RESUMES] || [];
     const decrypted: OptimizedResume[] = [];
+    let needsMigration = false;
     for (const item of stored) {
       // Legacy: unencrypted records saved before this version
       if (!item.encryptedContent) {
+        needsMigration = true;
         decrypted.push(item as unknown as OptimizedResume);
         continue;
       }
@@ -151,6 +174,16 @@ export const storage = {
       const optimizedContent = JSON.parse(json);
       const { encryptedContent: _, ...rest } = item;
       decrypted.push({ ...rest, optimizedContent });
+    }
+    if (needsMigration) {
+      const reEncrypted = await Promise.all(stored.map(async item => {
+        if (item.encryptedContent) return item as StoredOptimizedResume;
+        const r = item as unknown as OptimizedResume;
+        const encryptedContent = await encryptText(JSON.stringify(r.optimizedContent));
+        const { optimizedContent: _, ...rest } = r;
+        return { ...rest, encryptedContent };
+      }));
+      await chrome.storage.local.set({ [STORAGE_KEYS.OPTIMIZED_RESUMES]: reEncrypted });
     }
     return decrypted;
   },
@@ -170,12 +203,42 @@ export const storage = {
   // Cover Letters
   async getCoverLetters(): Promise<CoverLetter[]> {
     const result = await chrome.storage.local.get(STORAGE_KEYS.COVER_LETTERS);
-    return result[STORAGE_KEYS.COVER_LETTERS] || [];
+    const stored: (StoredCoverLetter | CoverLetter)[] = result[STORAGE_KEYS.COVER_LETTERS] || [];
+    const decrypted: CoverLetter[] = [];
+    let needsMigration = false;
+    for (const item of stored) {
+      // Legacy: unencrypted records saved before this version
+      if (!('encryptedContent' in item)) {
+        needsMigration = true;
+        decrypted.push(item as CoverLetter);
+        continue;
+      }
+      const content = await decryptText((item as StoredCoverLetter).encryptedContent);
+      const { encryptedContent: _, ...rest } = item as StoredCoverLetter;
+      decrypted.push({ ...rest, content });
+    }
+    if (needsMigration) {
+      const reEncrypted = await Promise.all(stored.map(async item => {
+        if ('encryptedContent' in item) return item as StoredCoverLetter;
+        const r = item as CoverLetter;
+        const encryptedContent = await encryptText(r.content);
+        const { content: _, ...rest } = r;
+        return { ...rest, encryptedContent };
+      }));
+      await chrome.storage.local.set({ [STORAGE_KEYS.COVER_LETTERS]: reEncrypted });
+    }
+    return decrypted;
   },
 
   async saveCoverLetter(letter: CoverLetter): Promise<void> {
-    const letters = await this.getCoverLetters();
-    const capped = [...letters, letter].slice(-50); // keep latest 50 only
+    // Trigger lazy migration so the stored array is all-encrypted before we cap it.
+    await this.getCoverLetters();
+    const existing = await chrome.storage.local.get(STORAGE_KEYS.COVER_LETTERS);
+    const stored: StoredCoverLetter[] = existing[STORAGE_KEYS.COVER_LETTERS] || [];
+    const encryptedContent = await encryptText(letter.content);
+    const { content: _, ...rest } = letter;
+    const toStore: StoredCoverLetter = { ...rest, encryptedContent };
+    const capped = [...stored, toStore].slice(-50); // keep latest 50 only
     await chrome.storage.local.set({
       [STORAGE_KEYS.COVER_LETTERS]: capped,
     });
@@ -184,18 +247,58 @@ export const storage = {
   // Applications
   async getApplications(): Promise<ApplicationRecord[]> {
     const result = await chrome.storage.local.get(STORAGE_KEYS.APPLICATIONS);
-    return result[STORAGE_KEYS.APPLICATIONS] || [];
+    const stored: (StoredApplicationRecord | ApplicationRecord)[] = result[STORAGE_KEYS.APPLICATIONS] || [];
+    const decrypted: ApplicationRecord[] = [];
+    let needsMigration = false;
+    for (const item of stored) {
+      // Legacy: unencrypted records saved before this version
+      if (!('encryptedData' in item)) {
+        needsMigration = true;
+        decrypted.push(item as ApplicationRecord);
+        continue;
+      }
+      try {
+        const json = await decryptText((item as StoredApplicationRecord).encryptedData);
+        const { jobTitle, company, url, notes } = JSON.parse(json);
+        const { encryptedData: _, ...rest } = item as StoredApplicationRecord;
+        decrypted.push({ ...rest, jobTitle, company, url, notes });
+      } catch {
+        // Skip corrupt record; don't abort the entire list
+      }
+    }
+    if (needsMigration) {
+      const reEncrypted = await Promise.all(stored.map(async item => {
+        if ('encryptedData' in item) return item as StoredApplicationRecord;
+        const r = item as ApplicationRecord;
+        const encryptedData = await encryptText(JSON.stringify({
+          jobTitle: r.jobTitle, company: r.company, url: r.url, notes: r.notes,
+        }));
+        const { jobTitle: _j, company: _c, url: _u, notes: _n, ...rest } = r;
+        return { ...rest, encryptedData };
+      }));
+      await chrome.storage.local.set({ [STORAGE_KEYS.APPLICATIONS]: reEncrypted });
+    }
+    return decrypted;
   },
 
   async saveApplication(application: ApplicationRecord): Promise<void> {
-    const applications = await this.getApplications();
-    const exists = applications.findIndex(a => a.id === application.id);
-    const updated = exists >= 0
-      ? applications.map(a => a.id === application.id ? application : a)
-      : [...applications, application].slice(-50); // keep latest 50 only
-    await chrome.storage.local.set({
-      [STORAGE_KEYS.APPLICATIONS]: updated,
-    });
+    // Trigger lazy migration so the stored array is all-encrypted before we cap it.
+    await this.getApplications();
+    const existing = await chrome.storage.local.get(STORAGE_KEYS.APPLICATIONS);
+    const stored: StoredApplicationRecord[] = existing[STORAGE_KEYS.APPLICATIONS] || [];
+    const encryptedData = await encryptText(JSON.stringify({
+      jobTitle: application.jobTitle,
+      company: application.company,
+      url: application.url,
+      notes: application.notes,
+    }));
+    const { jobTitle: _j, company: _c, url: _u, notes: _n, ...rest } = application;
+    const toStore: StoredApplicationRecord = { ...rest, encryptedData };
+    const existsIdx = stored.findIndex(s => s.id === application.id);
+    const updated = existsIdx >= 0
+      ? stored.map(s => s.id === application.id ? toStore : s).slice(-50)
+      : [...stored, toStore].slice(-50); // keep latest 50 only
+    await chrome.storage.local.set({ [STORAGE_KEYS.APPLICATIONS]: updated });
   },
 
   // Clear all data

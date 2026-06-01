@@ -20,9 +20,8 @@ const MAX_EDUCATION = 3;
 const MAX_REQUIREMENTS = 15;
 
 // Strip < and > so user-supplied text cannot escape the XML tag boundaries in the prompt.
-// Angle brackets are replaced with visually similar characters that carry no XML meaning.
 function sanitizeUserContent(text: string): string {
-  return text.replace(/</g, '(').replace(/>/g, ')');
+  return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 // Remove name, email, phone from text before sending to Claude

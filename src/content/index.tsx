@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import Sidebar from './sidebar';
+import inlineCss from '../styles/globals.css?inline';
 
 let hostElement: HTMLDivElement | null = null;
 let shadowContainer: HTMLDivElement | null = null;
@@ -27,11 +28,10 @@ const createRootElement = () => {
   // Shadow DOM isolates our CSS from the host page
   const shadow = hostElement.attachShadow({ mode: 'open' });
 
-  // Inject Tailwind CSS into the shadow DOM
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = chrome.runtime?.getURL('style.css') ?? '';
-  shadow.appendChild(link);
+  // Bundle Tailwind CSS inline — no async fetch, works on all pages
+  const styleEl = document.createElement('style');
+  styleEl.textContent = inlineCss;
+  shadow.appendChild(styleEl);
 
   // React container inside shadow DOM
   shadowContainer = document.createElement('div');

@@ -272,7 +272,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 // Strip < and > from user-supplied text so it cannot escape XML tag boundaries in prompts.
 function sanitizeUserContent(text: string): string {
-  return text.replace(/</g, '(').replace(/>/g, ')');
+  return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 // Sanitize error messages before sending to the content script.

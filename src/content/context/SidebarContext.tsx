@@ -131,14 +131,18 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return;
       }
 
-      const [creditsData, resumeData, appsData] = await Promise.all([
+      const [creditsData, resumeData, appsData, optimizedResumesData] = await Promise.all([
         storage.getCredits(currentUser.id),
         storage.getResume(),
         storage.getApplications(),
+        storage.getOptimizedResumes(),
       ]);
       setCredits(creditsData);
       setResume(resumeData);
       setApplications(appsData);
+      if (optimizedResumesData.length > 0) {
+        setOptimizedResume(optimizedResumesData[optimizedResumesData.length - 1]);
+      }
     } catch (err: any) {
       if (isContextInvalidated()) { setError(CONTEXT_INVALIDATED_MSG); return; }
       setError('Failed to load data');
@@ -348,15 +352,19 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const handleAuth = useCallback(async (loggedInUser: User) => {
     setUser(loggedInUser);
-    const [creditsData, resumeData, appsData, settings] = await Promise.all([
+    const [creditsData, resumeData, appsData, optimizedResumesData, settings] = await Promise.all([
       storage.getCredits(loggedInUser.id),
       storage.getResume(),
       storage.getApplications(),
+      storage.getOptimizedResumes(),
       storage.getSettings(),
     ]);
     setCredits(creditsData);
     setResume(resumeData);
     setApplications(appsData);
+    if (optimizedResumesData.length > 0) {
+      setOptimizedResume(optimizedResumesData[optimizedResumesData.length - 1]);
+    }
     setView('main');
     if (settings.autoDetectJob) detectJobDescription();
   }, [detectJobDescription]);

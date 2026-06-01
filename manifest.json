@@ -9,8 +9,7 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://*.supabase.co/*",
-    "https://api.anthropic.com/*"
+    "https://*.supabase.co/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
@@ -44,7 +43,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["style.css", "src/styles/content.css", "pdf.worker.min.mjs"],
+      "resources": ["src/styles/content.css", "pdf.worker.min.mjs"],
       "matches": [
         "*://*.linkedin.com/*",
         "*://*.indeed.com/*",

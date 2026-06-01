@@ -1,30 +1,41 @@
 /**
- * AES-GCM-256 encryption with a device-bound key.
+ * AES-GCM-256 encryption with a session-scoped key.
  *
- * A 256-bit AES-GCM key is generated once and persisted in
- * chrome.storage.local (on-disk, scoped to this extension). Both the key and
- * the encrypted data live in extension storage, so resume content is never
- * stored in plaintext. The key survives browser restarts within the same
- * Chrome profile; if extension storage is cleared, all encrypted data becomes
- * unreadable and the user must re-upload their resume.
+ * A 256-bit AES-GCM key is generated once per browser session and stored in
+ * chrome.storage.session (cleared when the browser closes). The key and the
+ * encrypted data therefore never co-exist on disk. If the browser is closed
+ * and reopened, a new key is generated and previously encrypted data becomes
+ * unreadable — users must re-upload their resume after restarting the browser.
+ * On Chrome builds that do not support chrome.storage.session, falls back to
+ * chrome.storage.local to avoid breaking existing installs.
  */
 
 const SESSION_KEY_NAME = '_resumeEncKey';
 
+// chrome.storage.session is MV3-only and clears when the browser closes,
+// so the key never persists to disk alongside the ciphertext it protects.
+// Fall back to chrome.storage.local only if session storage is unavailable
+// (e.g., older Chrome builds) to avoid breaking existing installs.
+const keyStore = chrome.storage.session ?? chrome.storage.local;
+
+// In-memory cache: avoids one chrome.storage IPC + one importKey per encrypt/decrypt call.
+let cachedKey: CryptoKey | null = null;
+
 async function getSessionKey(): Promise<CryptoKey> {
-  // Restore key from session storage if it exists (survives service worker
-  // restarts within the same browser session)
-  const stored = await chrome.storage.local.get(SESSION_KEY_NAME);
+  if (cachedKey) return cachedKey;
+
+  const stored = await keyStore.get(SESSION_KEY_NAME);
 
   if (stored[SESSION_KEY_NAME]) {
     const raw = Uint8Array.from(
       atob(stored[SESSION_KEY_NAME]),
       c => c.charCodeAt(0)
     );
-    return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, [
+    cachedKey = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, [
       'encrypt',
       'decrypt',
     ]);
+    return cachedKey;
   }
 
   // Generate a fresh 256-bit AES-GCM key for this browser session
@@ -34,13 +45,12 @@ async function getSessionKey(): Promise<CryptoKey> {
     ['encrypt', 'decrypt']
   );
 
-  // Export and persist to session storage so service worker restarts don't
-  // invalidate already-encrypted data within the same session
   const exported = await crypto.subtle.exportKey('raw', key);
   const encoded = btoa(String.fromCharCode(...new Uint8Array(exported)));
-  await chrome.storage.local.set({ [SESSION_KEY_NAME]: encoded });
+  await keyStore.set({ [SESSION_KEY_NAME]: encoded });
 
-  return key;
+  cachedKey = key;
+  return cachedKey;
 }
 
 /**
