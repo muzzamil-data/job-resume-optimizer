@@ -59,18 +59,10 @@ const STORAGE_KEYS = {
 
 // Initialize default values
 const DEFAULT_CREDITS: CreditBalance = {
-  total: 100,
+  total: 0,
   used: 0,
-  remaining: 100,
-  transactions: [
-    {
-      id: crypto.randomUUID(),
-      type: 'bonus',
-      amount: 100,
-      description: '100 test credits',
-      timestamp: new Date(),
-    },
-  ],
+  remaining: 0,
+  transactions: [],
 };
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -194,7 +186,11 @@ export const storage = {
     const encryptedContent = await encryptText(JSON.stringify(resume.optimizedContent));
     const { optimizedContent: _, ...rest } = resume;
     const toStore: StoredOptimizedResume = { ...rest, encryptedContent };
-    const capped = [...stored, toStore].slice(-10); // keep latest 10 only
+    const existsIdx = stored.findIndex(s => s.id === resume.id);
+    const capped = (existsIdx >= 0
+      ? stored.map(s => s.id === resume.id ? toStore : s)
+      : [...stored, toStore]
+    ).slice(-10);
     await chrome.storage.local.set({
       [STORAGE_KEYS.OPTIMIZED_RESUMES]: capped,
     });
@@ -301,8 +297,8 @@ export const storage = {
     await chrome.storage.local.set({ [STORAGE_KEYS.APPLICATIONS]: updated });
   },
 
-  // Clear all data
+  // Clear all app data. Preserves sb_access_token so the user stays logged in.
   async clearAll(): Promise<void> {
-    await chrome.storage.local.clear();
+    await chrome.storage.local.remove(Object.values(STORAGE_KEYS));
   },
 };

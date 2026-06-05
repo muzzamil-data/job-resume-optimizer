@@ -6,36 +6,62 @@
  * encrypted data therefore never co-exist on disk. If the browser is closed
  * and reopened, a new key is generated and previously encrypted data becomes
  * unreadable — users must re-upload their resume after restarting the browser.
- * On Chrome builds that do not support chrome.storage.session, falls back to
- * chrome.storage.local to avoid breaking existing installs.
+ *
+ * Security note: if chrome.storage.session is unavailable (Chrome 102-111
+ * content script contexts), the key is kept ONLY in the module-level memory
+ * cache and never written to chrome.storage.local. This means encrypted data
+ * does not survive page navigation on those builds, but it prevents the key
+ * and ciphertext from co-existing on disk where a local attacker could read both.
  */
 
 const SESSION_KEY_NAME = '_resumeEncKey';
 
-// chrome.storage.session is MV3-only and clears when the browser closes,
-// so the key never persists to disk alongside the ciphertext it protects.
-// Fall back to chrome.storage.local only if session storage is unavailable
-// (e.g., older Chrome builds) to avoid breaking existing installs.
-const keyStore = chrome.storage.session ?? chrome.storage.local;
-
 // In-memory cache: avoids one chrome.storage IPC + one importKey per encrypt/decrypt call.
+// Also serves as the sole key store when chrome.storage.session is unavailable.
 let cachedKey: CryptoKey | null = null;
+
+// Resolved once: null means chrome.storage.session is unavailable and we operate
+// in memory-only mode (key not persisted — safer than falling back to local storage).
+let sessionStore: chrome.storage.StorageArea | null | undefined = undefined;
+
+async function getSessionStore(): Promise<chrome.storage.StorageArea | null> {
+  if (sessionStore !== undefined) return sessionStore;
+  const candidate = chrome.storage.session ?? null;
+  if (!candidate) {
+    sessionStore = null;
+    return null;
+  }
+  try {
+    await candidate.get(SESSION_KEY_NAME);
+    sessionStore = candidate;
+  } catch {
+    // chrome.storage.session exists but is inaccessible from this context
+    // (Chrome 102-111 content scripts). Never fall back to local storage —
+    // that would store the raw key alongside the ciphertext on disk.
+    sessionStore = null;
+  }
+  return sessionStore;
+}
 
 async function getSessionKey(): Promise<CryptoKey> {
   if (cachedKey) return cachedKey;
 
-  const stored = await keyStore.get(SESSION_KEY_NAME);
+  const store = await getSessionStore();
 
-  if (stored[SESSION_KEY_NAME]) {
-    const raw = Uint8Array.from(
-      atob(stored[SESSION_KEY_NAME]),
-      c => c.charCodeAt(0)
-    );
-    cachedKey = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, [
-      'encrypt',
-      'decrypt',
-    ]);
-    return cachedKey;
+  if (store) {
+    // Try to load an existing key from session storage
+    const stored = await store.get(SESSION_KEY_NAME);
+    if (stored[SESSION_KEY_NAME]) {
+      const raw = Uint8Array.from(
+        atob(stored[SESSION_KEY_NAME]),
+        c => c.charCodeAt(0)
+      );
+      cachedKey = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, [
+        'encrypt',
+        'decrypt',
+      ]);
+      return cachedKey;
+    }
   }
 
   // Generate a fresh 256-bit AES-GCM key for this browser session
@@ -45,9 +71,14 @@ async function getSessionKey(): Promise<CryptoKey> {
     ['encrypt', 'decrypt']
   );
 
-  const exported = await crypto.subtle.exportKey('raw', key);
-  const encoded = btoa(String.fromCharCode(...new Uint8Array(exported)));
-  await keyStore.set({ [SESSION_KEY_NAME]: encoded });
+  if (store) {
+    // Persist to session storage so the key survives service worker suspension
+    const exported = await crypto.subtle.exportKey('raw', key);
+    const encoded = btoa(String.fromCharCode(...new Uint8Array(exported)));
+    await store.set({ [SESSION_KEY_NAME]: encoded });
+  }
+  // If store is null: key lives only in cachedKey (in-memory mode).
+  // Data will not survive page reload on this Chrome build, which is acceptable.
 
   cachedKey = key;
   return cachedKey;

@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 const URL_SCAN_DEBOUNCE_MS = 15_000;
 
 import { storage } from '../../lib/storage';
-import { AIService, calculateATSScore } from '../../lib/ai-service';
+import { AIService, calculateATSScoreWithBreakdown } from '../../lib/ai-service';
 import { JobScraper } from '../../lib/job-scraper';
 import { ResumeParser } from '../../lib/resume-parser';
 import { DocumentGenerator } from '../../lib/document-generator';
@@ -210,8 +210,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     try {
       const aiService = new AIService();
-      const baseResume = optimizedResume?.optimizedContent ?? resume.parsedData;
-      const result = await aiService.optimizeResume(baseResume, jobDescription);
+      const result = await aiService.optimizeResume(resume.parsedData, jobDescription);
 
       const optimized: OptimizedResume = {
         id: crypto.randomUUID(),
@@ -230,17 +229,24 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setOptimizedResume(optimized);
       setCoverLetter('');
 
-      const appRecord: ApplicationRecord = {
-        id: crypto.randomUUID(),
-        jobTitle: jobDescription.title,
-        company: jobDescription.company,
-        url: jobDescription.url,
-        appliedAt: new Date(),
-        resumeId: optimized.id,
-        status: 'applied',
-      };
+      const existingApp = applications.find(a => a.url === jobDescription.url);
+      const appRecord: ApplicationRecord = existingApp
+        ? { ...existingApp, resumeId: optimized.id, appliedAt: new Date() }
+        : {
+            id: crypto.randomUUID(),
+            jobTitle: jobDescription.title,
+            company: jobDescription.company,
+            url: jobDescription.url,
+            appliedAt: new Date(),
+            resumeId: optimized.id,
+            status: 'applied',
+          };
       await storage.saveApplication(appRecord);
-      setApplications(prev => [...prev, appRecord]);
+      setApplications(prev =>
+        existingApp
+          ? prev.map(a => a.id === existingApp.id ? appRecord : a)
+          : [...prev, appRecord]
+      );
 
       await refreshCredits();
       setView('optimize');
@@ -251,7 +257,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
       isOptimizingRef.current = false;
       setIsLoading(false);
     }
-  }, [resume, jobDescription, credits, user, optimizedResume]);
+  }, [resume, jobDescription, credits, user, applications]);
 
   const handleGenerateCoverLetter = useCallback(async (
     tone: 'professional' | 'enthusiastic' | 'technical' | 'creative'
@@ -320,14 +326,13 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
     exp[expIndex] = { ...exp[expIndex], bullets: [...exp[expIndex].bullets, text] };
     const updatedContent = { ...optimizedResume.optimizedContent, experience: exp };
 
-    const before = calculateATSScore(optimizedResume.optimizedContent, jobDescription);
-    const after  = calculateATSScore(updatedContent, jobDescription);
-    const newScore = Math.min(100, Math.max(0, optimizedResume.atsScore + (after - before)));
+    const newScoring = calculateATSScoreWithBreakdown(updatedContent, jobDescription);
 
     const updated: OptimizedResume = {
       ...optimizedResume,
       optimizedContent: updatedContent,
-      atsScore: newScore,
+      atsScore: newScoring.total,
+      scoring: newScoring,
     };
     setOptimizedResume(updated);
     storage.saveOptimizedResume(updated).catch(err => console.error('Failed to persist quick win:', err));
@@ -339,9 +344,16 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setJobDescription(null);
     setOptimizedResume(null);
     setCoverLetter('');
-    setCredits(null);
+    setApplications([]);
+    // Re-sync credits from server — local cache was just cleared
+    if (user) {
+      const updated = await storage.getCredits(user.id);
+      setCredits(updated);
+    } else {
+      setCredits(null);
+    }
     setView('main');
-  }, []);
+  }, [user]);
 
   const handleSignOut = useCallback(async () => {
     await signOut();

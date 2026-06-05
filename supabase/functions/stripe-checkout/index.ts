@@ -13,11 +13,18 @@
 import Stripe from 'npm:stripe@14';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+function buildCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get('origin') ?? '';
+  const allowed =
+    origin === 'null' ||
+    origin === '' ||
+    /^https?:\/\/localhost(:\d+)?$/.test(origin);
+  return {
+    'Access-Control-Allow-Origin':  allowed ? origin || 'null' : 'null',
+    'Access-Control-Allow-Headers': 'authorization, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
 
 // Mirror of src/lib/utils.ts CREDIT_PACKS — price is in cents (USD)
 const CREDIT_PACKS: Record<string, { name: string; totalCredits: number; priceCents: number }> = {
@@ -27,6 +34,14 @@ const CREDIT_PACKS: Record<string, { name: string; totalCredits: number; priceCe
 };
 
 Deno.serve(async (req) => {
+  const corsHeaders = buildCorsHeaders(req);
+  function json(data: Record<string, unknown>, status = 200) {
+    return new Response(JSON.stringify(data), {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -136,9 +151,3 @@ Deno.serve(async (req) => {
   return json({ url: session.url });
 });
 
-function json(data: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}

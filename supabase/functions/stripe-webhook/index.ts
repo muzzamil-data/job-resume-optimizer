@@ -12,6 +12,15 @@
 import Stripe from 'npm:stripe@14';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
+// Mirror of stripe-checkout CREDIT_PACKS. Credits are derived from pack_id on
+// the server — never trusted from session metadata, which originates client-side
+// when the checkout session is created.
+const CREDIT_PACKS: Record<string, { name: string; totalCredits: number }> = {
+  basic: { name: 'Basic Pack', totalCredits: 12 },
+  pro:   { name: 'Pro Pack',   totalCredits: 30 },
+  power: { name: 'Power Pack', totalCredits: 75 },
+};
+
 Deno.serve(async (req) => {
   const stripeKey     = Deno.env.get('STRIPE_SECRET_KEY');
   const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
@@ -50,18 +59,24 @@ Deno.serve(async (req) => {
       return new Response('OK', { status: 200 });
     }
 
-    const userId       = session.client_reference_id;
-    const totalCredits = parseInt(session.metadata?.total_credits ?? '0', 10);
-    const packName     = session.metadata?.pack_name ?? 'Credit purchase';
+    const userId = session.client_reference_id;
+    const packId = session.metadata?.pack_id ?? '';
 
     if (!userId) {
       console.error(`Session ${session.id}: missing client_reference_id`);
       return new Response('Missing client_reference_id', { status: 400 });
     }
-    if (!totalCredits || totalCredits <= 0) {
-      console.error(`Session ${session.id}: invalid total_credits metadata`);
-      return new Response('Invalid total_credits metadata', { status: 400 });
+
+    // Derive credits from the server-side pack table, not from metadata. The
+    // metadata.total_credits field is set when the checkout session is created
+    // and must not be trusted as the source of truth for how many credits to grant.
+    const pack = CREDIT_PACKS[packId];
+    if (!pack) {
+      console.error(`Session ${session.id}: unknown or missing pack_id "${packId}"`);
+      return new Response('Unknown pack_id', { status: 400 });
     }
+    const totalCredits = pack.totalCredits;
+    const packName     = pack.name;
 
     const supabase = createClient(supabaseUrl, serviceKey);
     const { error } = await supabase.rpc('add_credits', {

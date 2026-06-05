@@ -76,7 +76,7 @@ export const HistoryView: React.FC = () => {
                 })}
               </div>
 
-              {app.url && (
+              {app.url && app.url.startsWith('https://') && (
                 <a
                   href={app.url}
                   target="_blank"

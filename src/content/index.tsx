@@ -73,12 +73,15 @@ const toggleSidebar = () => {
   }
 };
 
-// Listen for messages from popup
+// Listen for messages from the extension's own popup/service worker only.
 // Wrapped in try-catch: if the extension context becomes invalidated (MV3 service
 // worker restart), addListener itself can throw. The sidebar still works for the
 // current session; the user just needs to refresh to re-establish the connection.
 try {
-  chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    // Only accept messages from this extension — reject anything from web pages
+    // or other extensions that might relay toggle commands.
+    if (sender.id !== chrome.runtime.id) return;
     if (request.action === 'toggleSidebar') {
       toggleSidebar();
       sendResponse({ success: true });

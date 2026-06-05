@@ -1,8 +1,4 @@
-import mammoth from 'mammoth';
-import * as pdfjsLib from 'pdfjs-dist';
 import type { ParsedResume, Resume } from '../types';
-
-type PdfTextItem = { str: string; transform: number[] };
 type ParsedResumeResponse = { success: boolean; data?: Partial<ParsedResume>; error?: string };
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -11,9 +7,6 @@ const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
-
-// Point worker to Chrome extension resource
-pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('pdf.worker.min.mjs');
 
 async function readMagicBytes(file: File, count: number): Promise<Uint8Array> {
   const slice = file.slice(0, count);
@@ -50,13 +43,18 @@ export class ResumeParser {
     }
 
     const fileType = isPdf ? 'pdf' : 'docx';
-    let rawText: string;
 
-    if (fileType === 'docx') {
-      rawText = await this.parseDOCX(file);
-    } else {
-      rawText = await this.parsePDF(file);
+    // Delegate the heavy lifting (mammoth / pdfjs) to the service worker so those
+    // libraries are not bundled into the content script.
+    const arrayBuffer = await file.arrayBuffer();
+    const parseResponse = await chrome.runtime.sendMessage({
+      action: 'parseFile',
+      payload: { buffer: arrayBuffer, fileType },
+    });
+    if (!parseResponse?.success) {
+      throw new Error(parseResponse?.error || 'Could not extract text from this file.');
     }
+    const rawText: string = parseResponse.rawText;
 
     if (!rawText || rawText.trim().length < 50) {
       throw new Error('Could not extract text from this file. Please try a different format.');
@@ -73,36 +71,6 @@ export class ResumeParser {
       parsedData,
       uploadedAt: new Date(),
     };
-  }
-
-  private async parseDOCX(file: File): Promise<string> {
-    const arrayBuffer = await file.arrayBuffer();
-    const result = await mammoth.extractRawText({ arrayBuffer });
-    return result.value;
-  }
-
-  private async parsePDF(file: File): Promise<string> {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const pages: string[] = [];
-
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      // Preserve line breaks using transform y-position
-      let lastY: number | null = null;
-      const lineChunks: string[] = [];
-      for (const item of content.items as PdfTextItem[]) {
-        if (lastY !== null && Math.abs(item.transform[5] - lastY) > 2) {
-          lineChunks.push('\n');
-        }
-        lineChunks.push(item.str);
-        lastY = item.transform[5];
-      }
-      pages.push(lineChunks.join(''));
-    }
-
-    return pages.join('\n');
   }
 
   private async extractWithAI(rawText: string): Promise<ParsedResume> {
@@ -123,6 +91,9 @@ export class ResumeParser {
           phone: data.phone,
           location: data.location,
           summary: data.summary,
+          coreCompetencies: Array.isArray(data.coreCompetencies) && data.coreCompetencies.length > 0
+            ? data.coreCompetencies
+            : undefined,
           experience: Array.isArray(data.experience) ? data.experience : [],
           education: Array.isArray(data.education) ? data.education : [],
           skills: Array.isArray(data.skills) ? data.skills : [],
@@ -139,6 +110,7 @@ export class ResumeParser {
 
   private extractLocally(text: string): ParsedResume {
     const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    const coreCompetencies = this.extractCoreCompetencies(text);
 
     return {
       name: this.extractName(lines),
@@ -146,12 +118,27 @@ export class ResumeParser {
       phone: this.extractPhone(text),
       location: this.extractLocation(text),
       summary: this.extractSummary(lines),
+      coreCompetencies,
       experience: this.extractExperience(text),
       education: this.extractEducation(text),
       skills: this.extractSkills(text),
       certifications: this.extractCertifications(text),
       raw: text,
     };
+  }
+
+  private extractCoreCompetencies(text: string): string[] | undefined {
+    const section = this.extractSection(
+      text,
+      /^(core competencies|areas of expertise|areas of strength)/im
+    );
+    if (!section) return undefined;
+    const items = section
+      .split(/[,•·|\n\/]/)
+      .map(s => s.trim().replace(/^[\-\*]\s*/, ''))
+      .filter(s => s.length > 1 && s.length < 60)
+      .slice(0, 15);
+    return items.length > 0 ? items : undefined;
   }
 
   private extractName(lines: string[]): string | undefined {
@@ -319,7 +306,7 @@ export class ResumeParser {
   private extractSkills(text: string): string[] {
     const section = this.extractSection(
       text,
-      /^(skills|technical skills|core competencies|technologies|key skills)/im
+      /^(skills|technical skills|technologies|key skills)/im
     );
     if (!section) return [];
 

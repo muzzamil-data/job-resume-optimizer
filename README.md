@@ -66,9 +66,9 @@ npm run dev
 ### First-Time Setup
 
 1. Click the extension icon in your Chrome toolbar
-2. Upload your master resume (PDF or DOCX)
-3. Enter your Claude API key in Settings
-4. You're ready to go!
+2. Sign in (or create an account) — your session is managed by Supabase Auth
+3. Upload your master resume (PDF or DOCX)
+4. You're ready to go! No API key needed — optimization runs through our backend
 
 ### Optimizing a Resume
 
@@ -79,13 +79,14 @@ npm run dev
 5. Wait 15–30 seconds for AI optimization
 6. Download as PDF or DOCX
 
-### API Key Setup
+### Account & Credits
 
-1. Go to [console.anthropic.com](https://console.anthropic.com)
-2. Create an account or sign in
-3. Navigate to API Keys
-4. Create a new API key
-5. Copy and paste into extension Settings
+No Anthropic API key is required. AI requests are served by the platform backend,
+which holds the Anthropic key in Supabase secrets. To use the extension:
+
+1. Sign in (or create an account) from the extension
+2. Each new account starts with free credits (see Pricing)
+3. Purchase additional credit packs from the in-extension billing screen when you run out
 
 ## Project Structure
 
@@ -119,7 +120,8 @@ job-resume-optimizer/
 - **Frontend**: React 18 + TypeScript
 - **Build Tool**: Vite + vite-plugin-web-extension
 - **Styling**: Tailwind CSS (Shadow DOM isolated)
-- **AI**: Anthropic Claude API (claude-haiku-4-5-20251001)
+- **AI**: Anthropic Claude API via a Supabase Edge Function proxy (server-side allowlist: claude-sonnet-4-6, claude-haiku-4-5-20251001)
+- **Backend**: Supabase (Auth, Postgres, Edge Functions) + Stripe for billing
 - **Document Generation**: docx, jsPDF
 - **Resume Parsing**: mammoth (DOCX), pdfjs-dist + pdf-parse (PDF)
 
@@ -127,7 +129,7 @@ job-resume-optimizer/
 
 1. **Job Detection**: Scrapes job title, company, and description from the current page using AI
 2. **Resume Parsing**: Extracts structured data from uploaded resume (PDF or DOCX)
-3. **AI Optimization**: Sends resume + job description to Claude API with expert ATS prompt
+3. **AI Optimization**: Sends resume + job description through the Edge Function proxy to the Claude API with an expert ATS prompt (credits and rate limits enforced server-side)
 4. **ATS Scoring**: 5-component score — keywords (30 pts), title match (20 pts), experience relevance (25 pts), achievements (15 pts), education/certs (10 pts)
 5. **Core Competencies**: Generates 12–15 keyword phrases ordered by JD importance
 6. **Quick Wins**: Suggests the highest-impact fixes to raise ATS score further
@@ -135,21 +137,29 @@ job-resume-optimizer/
 
 ## Privacy & Security
 
-- Your resume data is stored **locally** in your browser
-- API calls are made directly to Anthropic (no third-party servers)
-- Your API key is stored in Chrome's local storage
-- No data is collected or sent to our servers
+- Your resume is stored **locally** in your browser, encrypted at rest with AES-GCM-256
+- AI requests are proxied through our backend (a Supabase Edge Function) which holds the
+  platform Anthropic key — you do **not** supply your own API key
+- To optimize a resume, the relevant resume content and the job description are sent to our
+  Edge Function, which forwards them to Anthropic for processing. They are used only to
+  fulfill that request and are not retained on our servers afterward
+- Authentication uses Supabase Auth; only your account's JWT and the request payload are
+  transmitted — the Anthropic key never reaches the browser
+- Credit balances and rate limits are enforced **server-side**, so they cannot be bypassed
+  from the client
 - Message sender validation prevents cross-extension injection
 - Input sanitization prevents prompt injection attacks
 
-## API Costs
+## Unit Economics (operator reference)
+
+These are the platform's costs, not the end user's — users pay in credits, not per token.
 
 Using Claude Haiku (claude-haiku-4-5-20251001):
 - Input: $0.25 per million tokens
 - Output: $1.25 per million tokens
-- **Average cost per optimization: $0.001 – $0.003**
+- **Average Anthropic cost per optimization: $0.001 – $0.003**
 
-Example: At $9.99 for 30 credits, your actual API cost is ~$0.09, leaving $9.90 profit margin (99% margin!)
+Example: at $9.99 for 30 credits, the underlying Anthropic cost is ~$0.09, leaving a healthy gross margin.
 
 ## Roadmap
 
