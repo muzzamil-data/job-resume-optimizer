@@ -1,4 +1,5 @@
 import type { ParsedResume, Resume } from '../types';
+import { isContextInvalidatedError, EXTENSION_RELOAD_MSG } from './utils';
 type ParsedResumeResponse = { success: boolean; data?: Partial<ParsedResume>; error?: string };
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -46,15 +47,28 @@ export class ResumeParser {
 
     // Delegate the heavy lifting (mammoth / pdfjs) to the service worker so those
     // libraries are not bundled into the content script.
+    // chrome.runtime.sendMessage uses JSON serialization — ArrayBuffer becomes {}.
+    // Encode to base64 so the bytes survive the serialization boundary.
     const arrayBuffer = await file.arrayBuffer();
-    const parseResponse = await chrome.runtime.sendMessage({
-      action: 'parseFile',
-      payload: { buffer: arrayBuffer, fileType },
-    });
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    const base64 = btoa(binary);
+
+    let parseResponse: { success: boolean; rawText?: string; error?: string };
+    try {
+      parseResponse = await chrome.runtime.sendMessage({
+        action: 'parseFile',
+        payload: { buffer: base64, fileType },
+      });
+    } catch (err) {
+      if (isContextInvalidatedError(err)) throw new Error(EXTENSION_RELOAD_MSG);
+      throw err;
+    }
     if (!parseResponse?.success) {
       throw new Error(parseResponse?.error || 'Could not extract text from this file.');
     }
-    const rawText: string = parseResponse.rawText;
+    const rawText: string = parseResponse.rawText ?? '';
 
     if (!rawText || rawText.trim().length < 50) {
       throw new Error('Could not extract text from this file. Please try a different format.');
@@ -76,7 +90,9 @@ export class ResumeParser {
   private async extractWithAI(rawText: string): Promise<ParsedResume> {
     // Try AI parsing first — it handles all resume formats correctly
     try {
-      const truncated = rawText.slice(0, 6000);
+      // 12,000 chars covers a dense 3-page resume; 6,000 was cutting
+      // 2-page resumes in half before the AI ever saw them.
+      const truncated = rawText.slice(0, 12_000);
       const response: ParsedResumeResponse =
         await chrome.runtime.sendMessage({
           action: 'parseResume',

@@ -1,5 +1,13 @@
 import mammoth from 'mammoth';
-import * as pdfjsLib from 'pdfjs-dist';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — legacy build has no public type declarations but is required for
+// MV3 service workers: (1) it does not call new Worker() or dynamic import(),
+// (2) it tolerates a wider range of real-world PDF XRef formats.
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { WorkerMessageHandler } from 'pdfjs-dist/legacy/build/pdf.worker.mjs';
+import { extractAndParseJSON } from '../lib/extract-json';
 
 // Background service worker for Chrome extension
 // Proxies all AI calls through the Supabase Edge Function (claude-proxy).
@@ -10,9 +18,14 @@ import * as pdfjsLib from 'pdfjs-dist';
 // prompt text is resolved by the Edge Function and never appears in network
 // requests or this bundle, so it cannot be read via DevTools.
 
-// pdfjs needs to know where to load its worker. The fake-worker fallback in pdfjs
-// also imports this URL inline when Worker is unavailable (e.g. older MV3 contexts).
-pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('pdf.worker.min.mjs');
+// MV3 service workers are themselves workers — neither new Worker() nor dynamic
+// import() is available inside them. pdfjs checks globalThis.pdfjsWorker first;
+// when it finds the WorkerMessageHandler already loaded it skips both paths and
+// uses its LoopbackPort fake-worker, which runs in the service-worker thread.
+// workerSrc must be truthy so PDFWorker.workerSrc doesn't throw, but its value
+// is never used because #initialize() returns early once the global is set.
+(globalThis as Record<string, unknown>).pdfjsWorker = { WorkerMessageHandler };
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'unused';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const EDGE_FN_URL  = `${SUPABASE_URL}/functions/v1/claude-proxy`;
@@ -49,6 +62,13 @@ const SAFE_ERROR_PATTERNS = [
   'please wait',
   'not configured',
   'optimization failed',
+  'could not read the pdf',
+  'could not read the docx',
+  'could not extract text',
+  'file is too large',
+  'unsupported file type',
+  'valid pdf',
+  'valid docx',
 ];
 
 // Patterns that indicate internal/sensitive content that must NEVER reach the UI
@@ -196,6 +216,16 @@ function extractLocalPII(rawText: string): {
   return { name, email, phone, redacted };
 }
 
+// The Edge Function returns the raw Anthropic response envelope —
+// the model's JSON answer is the text of the first content block.
+function unwrapAnthropicJSON(apiResponse: any): any {
+  const text = apiResponse?.content?.[0]?.text;
+  if (typeof text !== 'string') {
+    throw new Error('Unexpected AI response format. Please try again.');
+  }
+  return extractAndParseJSON(text);
+}
+
 function requireString(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.trim() === '') {
     throw new Error(`Invalid payload: "${field}" must be a non-empty string`);
@@ -240,7 +270,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const sanitized = sanitizeUserContent(pageText.slice(0, 5000));
       const wrapped = `<page_content>\n${sanitized}\n</page_content>`;
       callEdgeFunction('scrapeJobWithAI', { pageText: wrapped })
-        .then(data => sendResponse({ success: true, data }))
+        .then(apiResponse => sendResponse({ success: true, data: unwrapAnthropicJSON(apiResponse) }))
         .catch(err => sendResponse({ success: false, error: sanitizeErrorMessage(err.message) }));
     } catch (err: any) {
       sendResponse({ success: false, error: sanitizeErrorMessage(err.message) });
@@ -256,7 +286,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       const sanitizedResume = sanitizeUserContent(localPII.redacted);
       const wrappedResume = `<resume_content>\n${sanitizedResume}\n</resume_content>`;
       callEdgeFunction('parseResume', { rawText: wrappedResume })
-        .then(data => {
+        .then(apiResponse => {
+          const data = unwrapAnthropicJSON(apiResponse);
           // Restore PII from local extraction — overwrite anything the AI may have guessed
           if (localPII.name)  data.name  = localPII.name;
           if (localPII.email) data.email = localPII.email;
@@ -279,12 +310,35 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
       }
       (async () => {
+        // buffer arrives as a base64 string — chrome.runtime.sendMessage uses JSON
+        // serialization which drops ArrayBuffer. Decode it back to bytes here.
+        if (typeof buffer !== 'string') {
+          throw new Error('Invalid buffer format');
+        }
+        const binaryStr = atob(buffer);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+        const ab = bytes.buffer;
+
         let rawText: string;
         if (fileType === 'docx') {
-          const result = await mammoth.extractRawText({ arrayBuffer: buffer as ArrayBuffer });
+          let result: { value: string };
+          try {
+            result = await mammoth.extractRawText({ arrayBuffer: ab });
+          } catch {
+            throw new Error('Could not read the DOCX file. Try re-saving it in Word and uploading again.');
+          }
           rawText = result.value;
         } else {
-          const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer as ArrayBuffer) }).promise;
+          const loadingTask = pdfjsLib.getDocument({ data: bytes });
+          let pdf: Awaited<typeof loadingTask.promise>;
+          try {
+            pdf = await loadingTask.promise;
+          } catch (err: unknown) {
+            console.error('[parseFile] pdfjs error:', err instanceof Error ? err.message : err);
+            await loadingTask.destroy();
+            throw new Error('Could not read the PDF file. Try converting it to DOCX and uploading that instead.');
+          }
           const pages: string[] = [];
           for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
@@ -294,6 +348,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             for (const item of content.items as Array<{ str: string; transform: number[] }>) {
               if (lastY !== null && Math.abs(item.transform[5] - lastY) > 2) {
                 lineChunks.push('\n');
+              } else if (lineChunks.length > 0 && item.str.length > 0) {
+                const prev = lineChunks[lineChunks.length - 1];
+                if (!prev.endsWith(' ') && !item.str.startsWith(' ')) {
+                  lineChunks.push(' ');
+                }
               }
               lineChunks.push(item.str);
               lastY = item.transform[5];
@@ -301,6 +360,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             pages.push(lineChunks.join(''));
           }
           rawText = pages.join('\n');
+          await pdf.destroy();
         }
         sendResponse({ success: true, rawText });
       })().catch(err => sendResponse({ success: false, error: sanitizeErrorMessage(err.message) }));

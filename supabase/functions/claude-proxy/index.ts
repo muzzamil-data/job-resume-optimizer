@@ -400,7 +400,10 @@ Deno.serve(async (req) => {
     const { rawText } = payload;
     anthropicBody = {
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 3000,
+      // The parse prompt asks for every bullet preserved verbatim — a dense
+      // multi-page resume produces more than 3000 tokens of JSON, and a
+      // truncated response fails JSON parsing client-side.
+      max_tokens: 8192,
       messages: [{ role: 'user', content: buildResumeParsePrompt(rawText) }],
     };
 
