@@ -1,4 +1,4 @@
-# Job Resume Optimizer - Chrome Extension
+# TailorCV - Chrome Extension
 
 AI-powered resume optimizer and cover letter generator for job applications. Apply to 5x more jobs in the same time!
 

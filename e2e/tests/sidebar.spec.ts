@@ -19,7 +19,7 @@ test.describe('Sidebar shell', () => {
     extensionContext,
   }) => {
     const page = await openJobPage(extensionContext);
-    await expect(page.locator('#job-optimizer-indicator')).toBeVisible();
+    await expect(page.locator('#tailorcv-indicator')).toBeVisible();
     await page.close();
   });
 
@@ -27,7 +27,7 @@ test.describe('Sidebar shell', () => {
     const page = await openJobPage(extensionContext);
     await openSidebar(page);
 
-    const host = page.locator('#job-optimizer-root');
+    const host = page.locator('#tailorcv-root');
     await expect(host).toBeVisible();
     await expect(host).not.toHaveCSS('width', '0px');
     await page.close();
@@ -38,7 +38,7 @@ test.describe('Sidebar shell', () => {
     await openSidebar(page);
 
     await expect(
-      page.locator('h2').filter({ hasText: 'Resume Optimizer' }),
+      page.locator('h2').filter({ hasText: 'TailorCV' }),
     ).toBeVisible();
     await page.close();
   });
@@ -50,7 +50,7 @@ test.describe('Sidebar shell', () => {
     await openSidebar(page);
 
     await page.locator('button[aria-label="Close sidebar"]').click();
-    await expect(page.locator('#job-optimizer-root')).toHaveCSS('width', '0px');
+    await expect(page.locator('#tailorcv-root')).toHaveCSS('width', '0px');
     await page.close();
   });
 
@@ -79,7 +79,7 @@ test.describe('Sidebar shell', () => {
 
     // Wait long enough to be sure the content script has run
     await page.waitForTimeout(2000);
-    await expect(page.locator('#job-optimizer-indicator')).toBeHidden();
+    await expect(page.locator('#tailorcv-indicator')).toBeHidden();
     await page.close();
   });
 
@@ -88,13 +88,13 @@ test.describe('Sidebar shell', () => {
     await openSidebar(page);
 
     await page.locator('button[aria-label="Close sidebar"]').click();
-    await expect(page.locator('#job-optimizer-root')).toHaveCSS('width', '0px');
+    await expect(page.locator('#tailorcv-root')).toHaveCSS('width', '0px');
 
     // Reload and open again via the indicator
     await page.reload({ waitUntil: 'domcontentloaded' });
     await openSidebar(page);
     await expect(
-      page.locator('h2').filter({ hasText: 'Resume Optimizer' }),
+      page.locator('h2').filter({ hasText: 'TailorCV' }),
     ).toBeVisible();
     await page.close();
   });

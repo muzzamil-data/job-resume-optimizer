@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Job Resume Optimizer",
+  "name": "TailorCV",
   "version": "1.0.1",
   "description": "AI-powered resume optimizer and cover letter generator. Apply to 5x more jobs in the same time.",
   "permissions": [

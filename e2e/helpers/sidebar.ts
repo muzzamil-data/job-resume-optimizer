@@ -56,12 +56,12 @@ export async function openJobPage(extensionContext: BrowserContext): Promise<Pag
  * the React header to appear inside the shadow host.
  */
 export async function openSidebar(page: Page): Promise<void> {
-  const indicator = page.locator('#job-optimizer-indicator');
+  const indicator = page.locator('#tailorcv-indicator');
   await indicator.waitFor({ state: 'visible', timeout: 10_000 });
   await indicator.click();
   // Playwright pierces open shadow roots — this locator works inside the shadow tree.
   await page
     .locator('h2')
-    .filter({ hasText: 'Resume Optimizer' })
+    .filter({ hasText: 'TailorCV' })
     .waitFor({ state: 'visible', timeout: 10_000 });
 }

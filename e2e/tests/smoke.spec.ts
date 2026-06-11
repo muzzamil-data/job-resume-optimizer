@@ -18,7 +18,7 @@ test.describe('Extension smoke tests', () => {
     const page = await extensionContext.newPage();
     await page.goto(`chrome-extension://${extensionId}/popup.html`);
 
-    await expect(page.locator('h1')).toContainText('Resume Optimizer');
+    await expect(page.locator('h1')).toContainText('TailorCV');
     await expect(page.locator('#open-sidebar')).toBeVisible();
     await page.close();
   });

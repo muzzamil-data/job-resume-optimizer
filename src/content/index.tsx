@@ -12,7 +12,7 @@ const createRootElement = () => {
   if (hostElement) return;
 
   hostElement = document.createElement('div');
-  hostElement.id = 'job-optimizer-root';
+  hostElement.id = 'tailorcv-root';
   hostElement.style.cssText = `
     position: fixed !important;
     top: 0 !important;
@@ -101,10 +101,10 @@ const checkIfJobPage = (): boolean => {
 
 const showJobPageIndicator = () => {
   if (!checkIfJobPage() || sidebarOpen) return;
-  if (document.getElementById('job-optimizer-indicator')) return;
+  if (document.getElementById('tailorcv-indicator')) return;
 
   const indicator = document.createElement('div');
-  indicator.id = 'job-optimizer-indicator';
+  indicator.id = 'tailorcv-indicator';
   indicator.style.cssText = `
     position: fixed;
     bottom: 20px;
@@ -140,7 +140,7 @@ const showJobPageIndicator = () => {
   line2.setAttribute('x1', '16'); line2.setAttribute('y1', '17');
   line2.setAttribute('x2', '8'); line2.setAttribute('y2', '17');
   svg.append(pathEl, polyEl, line1, line2);
-  indicator.append(svg, document.createTextNode(' Optimize Resume for This Job'));
+  indicator.append(svg, document.createTextNode(' TailorCV — Optimize for This Job'));
 
   indicator.addEventListener('mouseenter', () => { indicator.style.transform = 'scale(1.05)'; });
   indicator.addEventListener('mouseleave', () => { indicator.style.transform = 'scale(1)'; });
@@ -163,5 +163,21 @@ if (document.readyState === 'loading') {
 } else {
   showJobPageIndicator();
 }
+
+// Last-resort: suppress noisy unhandled-rejection console errors when the
+// extension is reloaded while this page is open. The UI shows a friendly
+// "please refresh" message via SidebarContext's error state already.
+window.addEventListener('unhandledrejection', (event) => {
+  const msg = (
+    event.reason instanceof Error ? event.reason.message : String(event.reason ?? '')
+  ).toLowerCase();
+  if (
+    msg.includes('extension context invalidated') ||
+    msg.includes('could not establish connection') ||
+    msg.includes('receiving end does not exist')
+  ) {
+    event.preventDefault();
+  }
+});
 
 export {};

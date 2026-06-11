@@ -1,4 +1,4 @@
-# Job Resume Optimizer - Complete Project Summary
+# TailorCV - Complete Project Summary
 
 ## What We Built
 

@@ -1,4 +1,4 @@
-# Development Guide - Job Resume Optimizer
+# Development Guide - TailorCV
 
 ## Getting Started
 
