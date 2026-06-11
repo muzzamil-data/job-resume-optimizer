@@ -86,9 +86,15 @@ export const storage = {
       return legacy;
     }
 
-    const decrypted = await decryptText(stored.encryptedData);
-    const { content, parsedData } = JSON.parse(decrypted);
-    return { id: stored.id, fileName: stored.fileName, fileType: stored.fileType, uploadedAt: stored.uploadedAt, content, parsedData };
+    try {
+      const decrypted = await decryptText(stored.encryptedData);
+      const { content, parsedData } = JSON.parse(decrypted);
+      return { id: stored.id, fileName: stored.fileName, fileType: stored.fileType, uploadedAt: stored.uploadedAt, content, parsedData };
+    } catch {
+      // Session key changed (browser restarted) — stale ciphertext is unreadable; clear it
+      await chrome.storage.local.remove(STORAGE_KEYS.RESUME);
+      return null;
+    }
   },
 
   async saveResume(resume: Resume): Promise<void> {
@@ -162,10 +168,14 @@ export const storage = {
         decrypted.push(item as unknown as OptimizedResume);
         continue;
       }
-      const json = await decryptText(item.encryptedContent);
-      const optimizedContent = JSON.parse(json);
-      const { encryptedContent: _, ...rest } = item;
-      decrypted.push({ ...rest, optimizedContent });
+      try {
+        const json = await decryptText(item.encryptedContent);
+        const optimizedContent = JSON.parse(json);
+        const { encryptedContent: _, ...rest } = item;
+        decrypted.push({ ...rest, optimizedContent });
+      } catch {
+        // Session key changed — skip this stale entry; it will be dropped when re-saved
+      }
     }
     if (needsMigration) {
       const reEncrypted = await Promise.all(stored.map(async item => {
@@ -209,9 +219,13 @@ export const storage = {
         decrypted.push(item as CoverLetter);
         continue;
       }
-      const content = await decryptText((item as StoredCoverLetter).encryptedContent);
-      const { encryptedContent: _, ...rest } = item as StoredCoverLetter;
-      decrypted.push({ ...rest, content });
+      try {
+        const content = await decryptText((item as StoredCoverLetter).encryptedContent);
+        const { encryptedContent: _, ...rest } = item as StoredCoverLetter;
+        decrypted.push({ ...rest, content });
+      } catch {
+        // Session key changed — skip stale entry
+      }
     }
     if (needsMigration) {
       const reEncrypted = await Promise.all(stored.map(async item => {

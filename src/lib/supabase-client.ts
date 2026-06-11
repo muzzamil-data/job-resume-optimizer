@@ -37,11 +37,17 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 // Keep sb_access_token in sync whenever the session is refreshed or changed.
 // The service worker reads this key directly (it cannot import the full Supabase client).
+// Wrapped in try-catch: chrome.storage throws if the extension context is invalidated
+// (e.g. extension reloaded while this page is open).
 supabase.auth.onAuthStateChange((_event, session) => {
-  if (session?.access_token) {
-    chrome.storage.local.set({ sb_access_token: session.access_token });
-  } else {
-    chrome.storage.local.remove('sb_access_token');
+  try {
+    if (session?.access_token) {
+      chrome.storage.local.set({ sb_access_token: session.access_token });
+    } else {
+      chrome.storage.local.remove('sb_access_token');
+    }
+  } catch {
+    // Context was invalidated — token sync will resume after the page is refreshed.
   }
 });
 

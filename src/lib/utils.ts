@@ -1,6 +1,18 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
+export const EXTENSION_RELOAD_MSG =
+  'The extension was updated or reloaded. Please refresh this page to continue.';
+
+export function isContextInvalidatedError(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    msg.includes('extension context invalidated') ||
+    msg.includes('could not establish connection') ||
+    msg.includes('receiving end does not exist')
+  );
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
