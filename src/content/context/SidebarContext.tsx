@@ -41,6 +41,7 @@ export interface SidebarContextValue {
   coverLetter: string;
   applications: ApplicationRecord[];
   isLoading: boolean;
+  loadingMessage: string;
   isDetecting: boolean;
   isCoverLetterLoading: boolean;
   error: string;
@@ -83,6 +84,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [coverLetter, setCoverLetter] = useState<string>('');
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const [isDetecting, setIsDetecting] = useState(false);
   const [isCoverLetterLoading, setIsCoverLetterLoading] = useState(false);
   const [error, setError] = useState<string>('');
@@ -177,6 +179,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const handleResumeUpload = useCallback(async (file: File) => {
     setIsLoading(true);
+    setLoadingMessage('Reading your resume...');
     setError('');
     try {
       const parser = new ResumeParser();
@@ -206,6 +209,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     isOptimizingRef.current = true;
     setIsLoading(true);
+    setLoadingMessage('Optimizing your resume...');
     setError('');
 
     try {
@@ -393,7 +397,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const value: SidebarContextValue = {
     view, user, credits, resume, jobDescription, optimizedResume,
-    coverLetter, applications, isLoading, isDetecting, isCoverLetterLoading, error,
+    coverLetter, applications, isLoading, loadingMessage, isDetecting, isCoverLetterLoading, error,
     setView, setError, setJobDescription,
     handleResumeUpload, handleOptimize, handleGenerateCoverLetter,
     handleDownload, handleApplyQuickWin, handleClearData, handleSignOut,

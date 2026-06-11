@@ -19,7 +19,7 @@ interface SidebarProps {
 }
 
 const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { view, setView, isLoading, error, setError, optimizedResume } = useSidebar();
+  const { view, setView, isLoading, loadingMessage, error, setError, optimizedResume } = useSidebar();
 
   return (
     <div className="flex flex-col w-full h-full bg-white shadow-xl overflow-hidden">
@@ -29,7 +29,7 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10 text-primary shrink-0">
             <FileText size={20} />
           </div>
-          <h2 className="text-slate-900 text-base font-bold tracking-tight">Resume Optimizer</h2>
+          <h2 className="text-slate-900 text-base font-bold tracking-tight">TailorCV</h2>
         </div>
         <button
           onClick={onClose}
@@ -74,8 +74,10 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <div aria-live="polite" role="status" className="flex flex-col items-center justify-center py-16 gap-4">
             <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" aria-hidden="true" />
             <div className="text-center">
-              <p className="text-sm font-semibold text-slate-700">Optimizing your resume...</p>
-              <p className="text-sm text-slate-400 mt-1">This takes 15-30 seconds</p>
+              <p className="text-sm font-semibold text-slate-700">{loadingMessage || 'Loading...'}</p>
+              {loadingMessage === 'Optimizing your resume...' && (
+                <p className="text-sm text-slate-400 mt-1">This takes 15-30 seconds</p>
+              )}
             </div>
           </div>
         )}
