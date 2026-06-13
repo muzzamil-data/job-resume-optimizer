@@ -221,6 +221,14 @@ const MAX_TOKENS_LIMIT = 4096;
 const MAX_MESSAGES = 10;
 const MAX_MESSAGE_CHARS = 12_000;
 
+// Input caps for the free AI actions. These bypass the callClaude
+// message-validation path above, so they need their own bound to stop
+// cost amplification via oversized prompts. Both sit well above the
+// legitimate client maximum (resume ~13.5k, page text ~5.5k after the
+// service worker wraps + escapes them).
+const MAX_PARSE_RESUME_CHARS = 20_000;
+const MAX_SCRAPE_PAGE_CHARS  = 10_000;
+
 // Per-user rate limits (requests per 60-second window).
 // callClaude is credit-gated so a tighter limit on the free actions matters most.
 const RATE_LIMITS: Record<string, number> = {
@@ -398,6 +406,11 @@ Deno.serve(async (req) => {
 
   } else if (action === 'parseResume') {
     const { rawText } = payload;
+    if (typeof rawText !== 'string' || rawText.length === 0 || rawText.length > MAX_PARSE_RESUME_CHARS) {
+      await logError(supabase, user.id, 'edge_function', action, 'invalid_input',
+        'parseResume rawText missing or exceeds size limit');
+      return json({ error: 'Invalid request' }, 400);
+    }
     anthropicBody = {
       model: 'claude-haiku-4-5-20251001',
       // The parse prompt asks for every bullet preserved verbatim — a dense
@@ -409,6 +422,11 @@ Deno.serve(async (req) => {
 
   } else if (action === 'scrapeJobWithAI') {
     const { pageText } = payload;
+    if (typeof pageText !== 'string' || pageText.length === 0 || pageText.length > MAX_SCRAPE_PAGE_CHARS) {
+      await logError(supabase, user.id, 'edge_function', action, 'invalid_input',
+        'scrapeJobWithAI pageText missing or exceeds size limit');
+      return json({ error: 'Invalid request' }, 400);
+    }
     anthropicBody = {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1500,
