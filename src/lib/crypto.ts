@@ -1,59 +1,60 @@
 /**
- * AES-GCM-256 encryption with a session-scoped key.
+ * AES-GCM-256 encryption with a device-persistent key.
  *
- * A 256-bit AES-GCM key is generated once per browser session and stored in
- * chrome.storage.session (cleared when the browser closes). The key and the
- * encrypted data therefore never co-exist on disk. If the browser is closed
- * and reopened, a new key is generated and previously encrypted data becomes
- * unreadable — users must re-upload their resume after restarting the browser.
+ * A 256-bit AES-GCM key is generated once and stored in chrome.storage.local,
+ * so it survives browser restarts. Encrypted data (resume, optimized resumes,
+ * cover letters, application history) therefore persists across restarts until
+ * the user uploads a new resume or clears their data.
  *
- * Security note: if chrome.storage.session is unavailable (Chrome 102-111
- * content script contexts), the key is kept ONLY in the module-level memory
- * cache and never written to chrome.storage.local. This means encrypted data
- * does not survive page navigation on those builds, but it prevents the key
- * and ciphertext from co-existing on disk where a local attacker could read both.
+ * Security note: because the key lives in chrome.storage.local alongside the
+ * ciphertext, this is obfuscation-at-rest rather than strong encryption — anyone
+ * with read access to the extension's local storage on the machine could decrypt
+ * it. That tradeoff is deliberate: the data is the user's own resume on their own
+ * device, it never leaves the device, and persistence-across-restart was the
+ * product requirement. Users can wipe everything via Settings → Clear data.
+ *
+ * If chrome.storage.local is somehow unavailable, the key falls back to the
+ * module-level memory cache only (data won't persist), which is harmless.
  */
 
-const SESSION_KEY_NAME = '_resumeEncKey';
+const ENC_KEY_NAME = '_resumeEncKey';
 
 // In-memory cache: avoids one chrome.storage IPC + one importKey per encrypt/decrypt call.
-// Also serves as the sole key store when chrome.storage.session is unavailable.
+// Also serves as the sole key store if chrome.storage.local is unavailable.
 let cachedKey: CryptoKey | null = null;
 
-// Resolved once: null means chrome.storage.session is unavailable and we operate
-// in memory-only mode (key not persisted — safer than falling back to local storage).
-let sessionStore: chrome.storage.StorageArea | null | undefined = undefined;
+// Resolved once: null means chrome.storage.local is unavailable and we operate
+// in memory-only mode (key not persisted for this run).
+let keyStore: chrome.storage.StorageArea | null | undefined = undefined;
 
-async function getSessionStore(): Promise<chrome.storage.StorageArea | null> {
-  if (sessionStore !== undefined) return sessionStore;
-  const candidate = chrome.storage.session ?? null;
+async function getKeyStore(): Promise<chrome.storage.StorageArea | null> {
+  if (keyStore !== undefined) return keyStore;
+  const candidate = chrome.storage.local ?? null;
   if (!candidate) {
-    sessionStore = null;
+    keyStore = null;
     return null;
   }
   try {
-    await candidate.get(SESSION_KEY_NAME);
-    sessionStore = candidate;
+    await candidate.get(ENC_KEY_NAME);
+    keyStore = candidate;
   } catch {
-    // chrome.storage.session exists but is inaccessible from this context
-    // (Chrome 102-111 content scripts). Never fall back to local storage —
-    // that would store the raw key alongside the ciphertext on disk.
-    sessionStore = null;
+    // chrome.storage.local exists but is inaccessible from this context.
+    keyStore = null;
   }
-  return sessionStore;
+  return keyStore;
 }
 
-async function getSessionKey(): Promise<CryptoKey> {
+async function getEncryptionKey(): Promise<CryptoKey> {
   if (cachedKey) return cachedKey;
 
-  const store = await getSessionStore();
+  const store = await getKeyStore();
 
   if (store) {
-    // Try to load an existing key from session storage
-    const stored = await store.get(SESSION_KEY_NAME);
-    if (stored[SESSION_KEY_NAME]) {
+    // Try to load the existing persistent key
+    const stored = await store.get(ENC_KEY_NAME);
+    if (stored[ENC_KEY_NAME]) {
       const raw = Uint8Array.from(
-        atob(stored[SESSION_KEY_NAME]),
+        atob(stored[ENC_KEY_NAME]),
         c => c.charCodeAt(0)
       );
       cachedKey = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, [
@@ -64,7 +65,7 @@ async function getSessionKey(): Promise<CryptoKey> {
     }
   }
 
-  // Generate a fresh 256-bit AES-GCM key for this browser session
+  // No key yet — generate a fresh 256-bit AES-GCM key
   const key = await crypto.subtle.generateKey(
     { name: 'AES-GCM', length: 256 },
     true,
@@ -72,13 +73,12 @@ async function getSessionKey(): Promise<CryptoKey> {
   );
 
   if (store) {
-    // Persist to session storage so the key survives service worker suspension
+    // Persist to local storage so the key (and thus the data) survives restarts
     const exported = await crypto.subtle.exportKey('raw', key);
     const encoded = btoa(String.fromCharCode(...new Uint8Array(exported)));
-    await store.set({ [SESSION_KEY_NAME]: encoded });
+    await store.set({ [ENC_KEY_NAME]: encoded });
   }
-  // If store is null: key lives only in cachedKey (in-memory mode).
-  // Data will not survive page reload on this Chrome build, which is acceptable.
+  // If store is null: key lives only in cachedKey (in-memory mode) for this run.
 
   cachedKey = key;
   return cachedKey;
@@ -88,7 +88,7 @@ async function getSessionKey(): Promise<CryptoKey> {
  * Encrypt a UTF-8 string. Returns a compact "iv:ciphertext" base64 string.
  */
 export async function encryptText(plaintext: string): Promise<string> {
-  const key = await getSessionKey();
+  const key = await getEncryptionKey();
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encrypted = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
@@ -102,10 +102,12 @@ export async function encryptText(plaintext: string): Promise<string> {
 
 /**
  * Decrypt a string produced by encryptText().
- * Throws if the session key has changed (browser was restarted).
+ * Throws only if the stored ciphertext is corrupt or was written with a
+ * different key (e.g. a one-time miss right after migrating from the old
+ * session-scoped key). Callers treat a throw as "data unreadable, drop it".
  */
 export async function decryptText(payload: string): Promise<string> {
-  const key = await getSessionKey();
+  const key = await getEncryptionKey();
   const colonIdx = payload.indexOf(':');
   const ivB64   = payload.slice(0, colonIdx);
   const dataB64 = payload.slice(colonIdx + 1);
