@@ -10,19 +10,48 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 // Custom storage adapter backed by chrome.storage.local.
 // Supabase uses this to persist the auth session across extension reloads.
+//
+// Each call is guarded: when the extension context is invalidated (the page was
+// open while the extension reloaded/updated), chrome.storage.local throws
+// synchronously. Supabase's background token-refresh timer calls this adapter, so
+// an unguarded throw surfaces as an uncaught "Extension context invalidated" error
+// in the chrome://extensions panel. We swallow it and resolve gracefully
+// (getItem → null = "no session"), and read chrome.runtime.lastError in the
+// callback to clear Chrome's unchecked-error warning.
 const chromeStorageAdapter = {
   getItem: (key: string): Promise<string | null> =>
-    new Promise(resolve =>
-      chrome.storage.local.get(key, result => resolve(result[key] ?? null))
-    ),
+    new Promise(resolve => {
+      try {
+        chrome.storage.local.get(key, result => {
+          void chrome.runtime.lastError;
+          resolve(result?.[key] ?? null);
+        });
+      } catch {
+        resolve(null);
+      }
+    }),
   setItem: (key: string, value: string): Promise<void> =>
-    new Promise(resolve =>
-      chrome.storage.local.set({ [key]: value }, resolve)
-    ),
+    new Promise(resolve => {
+      try {
+        chrome.storage.local.set({ [key]: value }, () => {
+          void chrome.runtime.lastError;
+          resolve();
+        });
+      } catch {
+        resolve();
+      }
+    }),
   removeItem: (key: string): Promise<void> =>
-    new Promise(resolve =>
-      chrome.storage.local.remove(key, resolve)
-    ),
+    new Promise(resolve => {
+      try {
+        chrome.storage.local.remove(key, () => {
+          void chrome.runtime.lastError;
+          resolve();
+        });
+      } catch {
+        resolve();
+      }
+    }),
 };
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
