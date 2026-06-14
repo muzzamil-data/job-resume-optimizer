@@ -112,11 +112,6 @@ export async function getSession(): Promise<Session | null> {
   return data.session;
 }
 
-export async function getUser(): Promise<User | null> {
-  const { data } = await supabase.auth.getUser();
-  return data.user ?? null;
-}
-
 // ── Credit helpers ────────────────────────────────────────────────────────────
 
 export interface SupabaseCredits {

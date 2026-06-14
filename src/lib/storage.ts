@@ -112,10 +112,6 @@ export const storage = {
     await chrome.storage.local.set({ [STORAGE_KEYS.RESUME]: stored });
   },
 
-  async deleteResume(): Promise<void> {
-    await chrome.storage.local.remove(STORAGE_KEYS.RESUME);
-  },
-
   // Credits
   // If the user is logged in, fetch live balance from Supabase.
   // Falls back to local storage for offline / unauthenticated scenarios.

@@ -99,27 +99,11 @@ export interface CreditTransaction {
   timestamp: Date;
 }
 
-export interface CreditPack {
-  id: string;
-  name: string;
-  baseCredits: number;
-  bonusCredits: number;
-  totalCredits: number;
-  price: number;
-  popular?: boolean;
-  bestValue?: boolean;
-}
-
 export interface UserSettings {
   // apiKey removed — the platform Anthropic key is now stored in Supabase secrets
   defaultTone: CoverLetter['tone'];
   autoDetectJob: boolean;
   showATSScore: boolean;
-}
-
-export interface AuthUser {
-  id: string;
-  email: string;
 }
 
 export interface ApplicationRecord {

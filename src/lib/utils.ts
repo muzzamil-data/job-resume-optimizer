@@ -1,6 +1,3 @@
-import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
 export const EXTENSION_RELOAD_MSG =
   'The extension was updated or reloaded. Please refresh this page to continue.';
 
@@ -11,19 +8,6 @@ export function isContextInvalidatedError(err: unknown): boolean {
     msg.includes('could not establish connection') ||
     msg.includes('receiving end does not exist')
   );
-}
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-
-export function formatDate(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
 }
 
 export function formatCurrency(amount: number): string {
@@ -42,11 +26,6 @@ export function generateFilename(type: 'resume' | 'cover-letter', jobTitle: stri
   } else {
     return `cover_letter_${sanitize(company)}_${sanitize(jobTitle)}_${timestamp}`;
   }
-}
-
-export function validateEmail(email: string): boolean {
-  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return re.test(email);
 }
 
 export function sleep(ms: number): Promise<void> {

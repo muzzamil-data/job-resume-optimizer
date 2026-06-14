@@ -354,11 +354,6 @@ export function calculateATSScoreWithBreakdown(
   return { atsKeywords, formatting, experienceRelevance, achievements, educationCerts, total };
 }
 
-// Backward-compatible wrapper — returns only the total.
-export function calculateATSScore(resume: ParsedResume, job: JobDescription): number {
-  return calculateATSScoreWithBreakdown(resume, job).total;
-}
-
 // Returns true when two bullet strings share enough meaningful words to be considered duplicates.
 // Uses Jaccard-style overlap on words longer than 3 chars (ignores stopwords by length).
 function bulletsSimilar(a: string, b: string, threshold = 0.55): boolean {
