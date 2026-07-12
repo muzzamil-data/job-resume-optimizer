@@ -27,8 +27,5 @@ npm-debug.log*
 # Claude Code local settings
 .claude/
 
-# Supabase temp files
-supabase/.temp/
-
 # E2E generated reports
 e2e/report/
