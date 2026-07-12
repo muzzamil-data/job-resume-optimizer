@@ -1,13 +1,11 @@
 import type { ParsedResume, JobDescription, KeywordMatch, ATSScoring, ExperienceItem } from '../types';
-import { isContextInvalidatedError, EXTENSION_RELOAD_MSG } from './utils';
+import { isContextInvalidatedError, EXTENSION_RELOAD_MSG, sanitizeUserContent } from './utils';
 import { extractAndParseJSON } from './extract-json';
 
-// The optimization system prompt lives in the service worker (service-worker.ts)
-// to prevent it from leaking into content-script error messages or the page JS bundle.
-// The content script sends useSystemPrompt: true and the service worker injects it.
+// The optimization system prompt lives in the service worker (service-worker.ts).
+// The content script sends this ID and the worker resolves it to the full prompt.
 const OPTIMIZE_SYSTEM_PROMPT_ID = '__optimize__';
 
-const DEFAULT_MODEL = 'claude-sonnet-4-6';
 const OPTIMIZE_MAX_TOKENS = 4096;
 const MAX_JOB_DESC_CHARS = 2500;
 const MAX_COVER_LETTER_DESC_CHARS = 1500;
@@ -27,12 +25,6 @@ const MAX_KEYWORD_CHARS = 40;
 const MAX_MESSAGE_TOTAL_CHARS = 11_500;
 // Budget for the embedded (pretty-printed) structured-resume JSON block.
 const MAX_STRUCTURED_CHARS = 3_500;
-
-// Strip XML-special characters so user-supplied text cannot escape tag boundaries.
-// Escape & first (before < and >) so &lt; in input doesn't become < after entity decode.
-function sanitizeUserContent(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 function s(value: string | undefined | null): string {
   return value ? sanitizeUserContent(value) : '';
@@ -64,17 +56,13 @@ function redactPII(text: string, name?: string, email?: string, phone?: string):
   return result;
 }
 
-// Proxy API call through background service worker.
-// The service worker forwards to the Supabase Edge Function, which holds the API key.
-// deductCredit=true is only passed for resume optimization (costs 1 credit).
-type AnthropicContent = { type: 'text'; text: string } | { type: string; text?: string };
-type AnthropicApiResponse = { content: AnthropicContent[] };
-type BackgroundResponse<T = AnthropicApiResponse> = { success: boolean; data?: T; error?: string };
+// Route the AI call through the background service worker, which holds the
+// provider transport and the user's key. The worker returns { text }.
+type BackgroundResponse = { success: boolean; data?: { text: string }; error?: string };
 
-async function callClaudeViaBackground(
+async function callAIViaBackground(
   messages: { role: string; content: string }[],
   maxTokens: number,
-  model = 'claude-sonnet-4-6',
   system?: string,
   action: 'callClaude' | 'callClaudeFree' = 'callClaude',
 ): Promise<string> {
@@ -82,7 +70,7 @@ async function callClaudeViaBackground(
   try {
     response = await chrome.runtime.sendMessage({
       action,
-      payload: { messages, maxTokens, model, system },
+      payload: { messages, maxTokens, system },
     });
   } catch (err) {
     if (isContextInvalidatedError(err)) throw new Error(EXTENSION_RELOAD_MSG);
@@ -90,15 +78,15 @@ async function callClaudeViaBackground(
   }
 
   if (!response.success) {
-    throw new Error(response.error || 'API call failed');
+    throw new Error(response.error || 'AI request failed');
   }
 
-  const content = response.data?.content?.[0];
-  if (!content || content.type !== 'text' || typeof content.text !== 'string') {
-    throw new Error('Unexpected API response format');
+  const text = response.data?.text;
+  if (typeof text !== 'string') {
+    throw new Error('Unexpected AI response format');
   }
 
-  return content.text;
+  return text;
 }
 
 function validateInputs(resumeText: string, jobDescription: string): string[] {
@@ -407,8 +395,8 @@ function validateOptimizationResponse(parsed: any): string[] {
 }
 
 export class AIService {
-  // apiKey removed — the platform key lives in Supabase secrets on the server.
-  // Credit deduction happens atomically in the Edge Function for optimization calls.
+  // No key here — the service worker reads the user's provider config from
+  // chrome.storage.local and makes the request.
 
   async optimizeResume(
     resume: ParsedResume,
@@ -430,19 +418,14 @@ export class AIService {
       throw new Error(errors.join(' | '));
     }
 
-    // Credit deduction is enforced by the service worker for all callClaude actions.
-    // The system prompt ID tells the service worker to inject the optimization prompt
-    // server-side, so it never appears in the content script bundle or error messages.
-    // Prefill the assistant turn with '{' to force Claude to start the JSON immediately.
-    // The API continues from the prefill, so we prepend '{' to reconstruct the full object.
+    // The system prompt ID tells the service worker which prompt to attach.
     const MAX_RETRIES = 3;
     let lastError: Error = new Error('Optimization failed. Please try again.');
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
-        const text = await callClaudeViaBackground(
+        const text = await callAIViaBackground(
           [{ role: 'user', content: userMessage }],
           OPTIMIZE_MAX_TOKENS,
-          DEFAULT_MODEL,
           OPTIMIZE_SYSTEM_PROMPT_ID,
         );
         return this.parseOptimizationResponse(text, resume, jobDescription);
@@ -467,12 +450,11 @@ export class AIService {
     tone: 'professional' | 'enthusiastic' | 'technical' | 'creative'
   ): Promise<string> {
     const prompt = this.buildCoverLetterPrompt(resume, jobDescription, tone);
-    const text = await callClaudeViaBackground(
+    const text = await callAIViaBackground(
       [{ role: 'user', content: prompt }],
       2000,
-      DEFAULT_MODEL,
       undefined,
-      'callClaudeFree', // Cover letters are free — no credit deduction
+      'callClaudeFree',
     );
     // Restore real name locally — it was never sent to Claude
     const candidateName = resume.name?.trim() || '';

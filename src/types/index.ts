@@ -84,23 +84,19 @@ export interface CoverLetter {
   createdAt: Date;
 }
 
-export interface CreditBalance {
-  total: number;
-  used: number;
-  remaining: number;
-  transactions: CreditTransaction[];
-}
-
-export interface CreditTransaction {
-  id: string;
-  type: 'purchase' | 'usage' | 'bonus' | 'refund';
-  amount: number;
-  description: string;
-  timestamp: Date;
+/**
+ * Bring-your-own-key provider configuration.
+ * Stored only in chrome.storage.local on the user's machine and sent directly
+ * to the OpenAI-compatible endpoint the user configures — never to any server
+ * of ours (there is no server).
+ */
+export interface ApiConfig {
+  baseUrl: string;   // e.g. https://api.openai.com/v1 or https://openrouter.ai/api/v1
+  apiKey: string;    // the user's own key
+  model: string;     // e.g. gpt-4o-mini, anthropic/claude-haiku-4-5, llama-3.3-70b
 }
 
 export interface UserSettings {
-  // apiKey removed — the platform Anthropic key is now stored in Supabase secrets
   defaultTone: CoverLetter['tone'];
   autoDetectJob: boolean;
   showATSScore: boolean;

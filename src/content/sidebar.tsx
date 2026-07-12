@@ -1,15 +1,14 @@
 import React from 'react';
-import { X, FileText, AlertTriangle, Clock, RefreshCw } from 'lucide-react';
+import { X, AlertTriangle, Clock, RefreshCw } from 'lucide-react';
 
 import { SidebarProvider, useSidebar } from './context';
+import { LOGO_DATA_URI } from './logo';
 import {
   ErrorBoundary,
   MainView,
   UploadView,
   OptimizeView,
-  CreditsView,
   SettingsView,
-  AuthView,
   PasteJobView,
   HistoryView,
 } from './views';
@@ -26,9 +25,7 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       {/* Header */}
       <header className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white sticky top-0 z-10 shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10 text-primary shrink-0">
-            <FileText size={20} />
-          </div>
+          <img src={LOGO_DATA_URI} alt="TailorCV logo" className="w-9 h-9 rounded-lg shrink-0" />
           <h2 className="text-slate-900 text-base font-bold tracking-tight">TailorCV</h2>
         </div>
         <button
@@ -94,9 +91,7 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               </button>
             </div>
           )}
-          {view === 'credits' && <CreditsView />}
           {view === 'settings' && <SettingsView />}
-          {view === 'auth' && <AuthView />}
           {view === 'history' && <HistoryView />}
           {view === 'paste-job' && <PasteJobView />}
         </ErrorBoundary>

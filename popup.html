@@ -13,9 +13,21 @@
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
     }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 10px 0;
+    }
+    .header img {
+      width: 32px;
+      height: 32px;
+      border-radius: 7px;
+      flex-shrink: 0;
+    }
     h1 {
       font-size: 18px;
-      margin: 0 0 10px 0;
+      margin: 0;
     }
     p {
       font-size: 14px;
@@ -59,17 +71,19 @@
   </style>
 </head>
 <body>
-  <h1>TailorCV</h1>
-  <p>Optimize your resume for any job in seconds!</p>
-  
+  <div class="header">
+    <img src="icons/logo48.png" alt="TailorCV logo" />
+    <h1>TailorCV</h1>
+  </div>
+  <p>Optimize your resume for any job in seconds — with your own API key.</p>
+
   <div class="status" id="status">
     <div class="user-status" id="user-status">Loading...</div>
-    <span id="credits-text"></span>
+    <span id="status-detail"></span>
   </div>
-  
+
   <button id="open-sidebar">Open Optimizer</button>
-  <button class="secondary" id="view-credits">View Credits</button>
-  
+
   <script type="module" src="popup.js"></script>
 </body>
 </html>

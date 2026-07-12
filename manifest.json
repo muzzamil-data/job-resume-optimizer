@@ -2,14 +2,15 @@
   "manifest_version": 3,
   "name": "TailorCV",
   "version": "1.0.1",
-  "description": "AI-powered resume optimizer and cover letter generator. Apply to 5x more jobs in the same time.",
+  "description": "AI resume optimizer and cover letter generator. Tailor your resume to a job posting in seconds.",
   "permissions": [
     "storage",
     "activeTab",
     "scripting"
   ],
   "host_permissions": [
-    "https://*.supabase.co/*"
+    "https://*/*",
+    "http://localhost/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
@@ -21,39 +22,57 @@
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "icons/icon16.png",
-      "32": "icons/icon32.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
+      "16": "icons/logo16.png",
+      "32": "icons/logo32.png",
+      "48": "icons/logo48.png",
+      "128": "icons/logo128.png"
     }
   },
   "content_scripts": [
     {
-      "matches": ["https://*/*"],
+      "matches": [
+        "https://*.linkedin.com/*",
+        "https://*.indeed.com/*",
+        "https://*.glassdoor.com/*",
+        "https://*.greenhouse.io/*",
+        "https://*.lever.co/*",
+        "https://*.myworkdayjobs.com/*",
+        "https://*.workday.com/*",
+        "https://*.bayt.com/*",
+        "https://*.naukri.com/*",
+        "https://*.ziprecruiter.com/*",
+        "https://*.monster.com/*",
+        "https://*.wellfound.com/*",
+        "https://*.angel.co/*"
+      ],
       "js": ["src/content/index.tsx"],
       "css": ["src/styles/content.css"],
       "run_at": "document_idle"
     }
   ],
   "icons": {
-    "16": "icons/icon16.png",
-    "32": "icons/icon32.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "icons/logo16.png",
+    "32": "icons/logo32.png",
+    "48": "icons/logo48.png",
+    "128": "icons/logo128.png"
   },
   "web_accessible_resources": [
     {
-      "resources": ["src/styles/content.css", "pdf.worker.min.mjs"],
+      "resources": ["src/styles/content.css"],
       "matches": [
-        "*://*.linkedin.com/*",
-        "*://*.indeed.com/*",
-        "*://*.glassdoor.com/*",
-        "*://*.greenhouse.io/*",
-        "*://*.lever.co/*",
-        "*://*.myworkdayjobs.com/*",
-        "*://*.workday.com/*",
-        "*://*.ziprecruiter.com/*",
-        "*://*.monster.com/*"
+        "https://*.linkedin.com/*",
+        "https://*.indeed.com/*",
+        "https://*.glassdoor.com/*",
+        "https://*.greenhouse.io/*",
+        "https://*.lever.co/*",
+        "https://*.myworkdayjobs.com/*",
+        "https://*.workday.com/*",
+        "https://*.bayt.com/*",
+        "https://*.naukri.com/*",
+        "https://*.ziprecruiter.com/*",
+        "https://*.monster.com/*",
+        "https://*.wellfound.com/*",
+        "https://*.angel.co/*"
       ]
     }
   ]

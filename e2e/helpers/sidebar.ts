@@ -7,9 +7,14 @@
  */
 import { type BrowserContext, type Page } from '@playwright/test';
 
-/** A fake job posting URL — contains "jobs" so the indicator appears. */
+/**
+ * A fake job posting URL on a supported board (linkedin.com) so the content
+ * script auto-injects per the manifest match patterns, and "jobs"/"linkedin"
+ * in the URL trigger the floating job-page indicator. The response is served
+ * via route interception below, so no real network request is made.
+ */
 export const JOB_PAGE_URL =
-  'https://careers.example-test.com/jobs/software-engineer-123';
+  'https://www.linkedin.com/jobs/view/software-engineer-123';
 
 const JOB_PAGE_HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -35,8 +40,9 @@ const JOB_PAGE_HTML = `<!DOCTYPE html>
 
 /**
  * Open a new page at the fake job URL (served locally via route interception).
- * The content script injects because the URL matches https:/‌/‌*\/*.
- * The "jobs" keyword in the path triggers the floating job-page indicator.
+ * The content script injects because linkedin.com matches the manifest's
+ * content_scripts patterns. The "jobs" keyword in the path triggers the
+ * floating job-page indicator.
  */
 export async function openJobPage(extensionContext: BrowserContext): Promise<Page> {
   const page = await extensionContext.newPage();
