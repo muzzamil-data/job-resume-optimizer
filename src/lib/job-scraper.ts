@@ -17,7 +17,13 @@ type ScrapedJobData = {
 type AiScrapeResponse = { success: boolean; data?: ScrapedJobData; error?: string };
 
 export class JobScraper {
-  async scrapeCurrentPage(): Promise<JobDescription | null> {
+  /**
+   * @param useAI When true, fall back to a Claude call if the DOM scrapers find
+   *   nothing. Pass false for automatic detection (login / SPA navigation) so we
+   *   never fire an API request the user didn't ask for; the AI fallback then
+   *   runs only on an explicit user-initiated scan.
+   */
+  async scrapeCurrentPage(useAI = true): Promise<JobDescription | null> {
     const url = window.location.href;
 
     // Try DOM scrapers immediately
@@ -34,8 +40,9 @@ export class JobScraper {
       jobData = this.tryAllScrapers();
     }
 
-    // AI fallback — works on ANY site where selectors failed
-    if (!jobData) {
+    // AI fallback — works on ANY site where selectors failed.
+    // Only on an explicit user-initiated scan, never on automatic detection.
+    if (useAI && !jobData) {
       jobData = await this.scrapeWithAI();
     }
 
@@ -43,7 +50,9 @@ export class JobScraper {
       return { ...jobData, url } as JobDescription;
     }
 
-    console.warn('[JobScraper] All scrapers and AI fallback failed for:', url);
+    // No match is expected on non-job pages; keep it out of the extension error
+    // panel (console.debug is not collected like warn/error).
+    console.debug('[JobScraper] No job posting detected for:', url);
     return null;
   }
 

@@ -1,49 +1,38 @@
 /**
- * Authenticated fixture — extends the base extension fixture with mocked
- * Supabase routes and a fake session injected into chrome.storage so tests
- * reach the logged-in main view without a real backend.
+ * Configured fixture — extends the base extension fixture with a mocked provider
+ * endpoint and an injected API config so tests reach the ready-to-use main view.
+ *
+ * (The fixture key is kept as `authenticatedPage` for backwards compatibility
+ * with the existing specs; there is no authentication anymore.)
  */
 import { type Page } from '@playwright/test';
 import { test as extTest } from './extension';
 import {
-  mockSupabaseRoutes,
-  injectAuthSession,
+  mockProviderRoutes,
+  injectApiConfig,
   clearExtensionStorage,
-  readSupabaseUrl,
 } from '../helpers/routes';
 import { openJobPage, openSidebar } from '../helpers/sidebar';
 
-type AuthTestFixtures = {
+type ConfiguredTestFixtures = {
   authenticatedPage: Page;
 };
 
-export const test = extTest.extend<AuthTestFixtures>({
+export const test = extTest.extend<ConfiguredTestFixtures>({
   authenticatedPage: async ({ extensionContext, extensionWorker }, use) => {
-    const supabaseUrl = readSupabaseUrl();
-    if (!supabaseUrl) {
-      console.warn(
-        '[authenticated fixture] VITE_SUPABASE_URL not set — skipping. ' +
-          'Add it to .env.local or set the environment variable.',
-      );
-      const dummy = await extensionContext.newPage();
-      await use(dummy);
-      await dummy.close();
-      return;
-    }
+    // Never hit a real provider
+    await mockProviderRoutes(extensionContext);
 
-    // Mock Supabase network calls before any page opens
-    await mockSupabaseRoutes(extensionContext);
-
-    // Inject a fake session so loadData() finds an active user
-    await injectAuthSession(extensionWorker, supabaseUrl);
+    // Seed a provider config so the extension is "configured"
+    await injectApiConfig(extensionWorker);
 
     // Open the job page and sidebar
     const page = await openJobPage(extensionContext);
     await openSidebar(page);
 
-    // "Premium Balance" is only present in the main (logged-in) view
+    // "Current Resume" is present in the main view
     await page
-      .locator('text=Premium Balance')
+      .locator('text=Current Resume')
       .waitFor({ state: 'visible', timeout: 15_000 });
 
     await use(page);

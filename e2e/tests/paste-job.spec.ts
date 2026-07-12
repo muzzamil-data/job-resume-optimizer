@@ -8,11 +8,13 @@ import { test, expect } from '../fixtures/authenticated';
 
 test.describe('Paste Job Description view', () => {
   test.beforeEach(async ({ authenticatedPage }) => {
-    // Navigate from main view to paste-job view via "Paste JD" button.
-    // In the unauthenticated/no-job-detected state the button is labelled "Paste JD".
-    await authenticatedPage
-      .getByRole('button', { name: /Paste JD/i })
-      .click();
+    // Navigate from main view to the paste-job view. Both entry points call
+    // setView('paste-job'): "Paste JD" in the no-job-detected state, and the
+    // "Edit job description" pencil once a job has been auto-detected. Use
+    // whichever is present so the test is robust to detection timing.
+    const pasteJd = authenticatedPage.getByRole('button', { name: /Paste JD/i });
+    const editJob = authenticatedPage.locator('button[aria-label="Edit job description"]');
+    await pasteJd.or(editJob).first().click();
     await authenticatedPage
       .locator('h3')
       .filter({ hasText: 'Paste Job Description' })
@@ -109,7 +111,7 @@ test.describe('Paste Job Description view', () => {
       .filter({ hasText: /← Back/ })
       .click();
     await expect(
-      authenticatedPage.locator('text=Premium Balance'),
+      authenticatedPage.locator('text=Current Resume'),
     ).toBeVisible();
   });
 

@@ -1,11 +1,11 @@
 {
   "name": "tailorcv",
   "version": "1.0.0",
-  "description": "AI-powered resume optimizer and cover letter generator for job applications",
+  "description": "Open-source, bring-your-own-key AI resume optimizer and cover letter generator. Runs entirely in your browser against your own AI provider key.",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tailwindcss -i ./src/styles/globals.css -o ./style.css && vite build && copy style.css dist\\style.css",
+    "build": "vite build",
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
@@ -13,7 +13,6 @@
     "test:e2e:report": "playwright show-report e2e/report"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.99.3",
     "docx": "^8.5.0",
     "jspdf": "^4.2.0",
     "lucide-react": "^0.263.1",

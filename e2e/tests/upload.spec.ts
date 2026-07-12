@@ -96,7 +96,7 @@ test.describe('Upload Resume view', () => {
       .filter({ hasText: /← Back/ })
       .click();
     await expect(
-      authenticatedPage.locator('text=Premium Balance'),
+      authenticatedPage.locator('text=Current Resume'),
     ).toBeVisible();
   });
 });

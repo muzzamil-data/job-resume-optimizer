@@ -1,13 +1,13 @@
 import React from 'react';
 import {
-  FileText, Sparkles, Settings, PlusCircle, History,
-  CheckCircle2, RefreshCw, Pencil, AlertTriangle,
+  FileText, Sparkles, Settings, History,
+  CheckCircle2, RefreshCw, Pencil, AlertTriangle, KeyRound,
 } from 'lucide-react';
 import { useSidebar } from '../context';
 
 export const MainView: React.FC = () => {
   const {
-    resume, jobDescription, credits, isLoading, isDetecting,
+    resume, jobDescription, isConfigured, isLoading, isDetecting,
     setView, handleOptimize, detectJobDescription,
   } = useSidebar();
 
@@ -20,31 +20,25 @@ export const MainView: React.FC = () => {
     : descCharCount < 800 ? 'medium'
     : 'good';
 
-  const canOptimize = !!(resume && jobDescription && credits && credits.remaining > 0 && !isLoading);
+  const canOptimize = !!(resume && jobDescription && isConfigured && !isLoading);
 
   return (
     <>
-      {/* Credits card */}
-      <div className="relative overflow-hidden p-4 rounded-xl border border-primary/10 bg-gradient-to-br from-primary/5 to-transparent flex items-center justify-between">
-        <div className="flex flex-col">
-          <span className="text-sm font-semibold uppercase tracking-wider text-primary/70 mb-0.5">
-            Premium Balance
-          </span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold text-slate-900">
-              {credits?.remaining ?? 0}
-            </span>
-            <span className="text-sm font-medium text-slate-600">Credits</span>
-          </div>
-        </div>
+      {/* API key setup prompt */}
+      {!isConfigured && (
         <button
-          onClick={() => setView('credits')}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-all shadow-sm"
+          onClick={() => setView('settings')}
+          className="w-full flex items-center gap-3 p-4 rounded-xl border border-primary/20 bg-primary/5 text-left hover:bg-primary/10 transition-colors"
         >
-          Buy More
-          <PlusCircle size={13} />
+          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-white shadow-sm text-primary shrink-0">
+            <KeyRound size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-slate-900">Add your API key to get started</p>
+            <p className="text-sm text-slate-500">Use your own OpenAI-compatible key — it stays on this device.</p>
+          </div>
         </button>
-      </div>
+      )}
 
       {/* Resume section */}
       <div className="space-y-2">
@@ -115,7 +109,7 @@ export const MainView: React.FC = () => {
               </div>
               <div className="flex gap-1">
                 <button
-                  onClick={detectJobDescription}
+                  onClick={() => detectJobDescription()}
                   aria-label="Re-scan page for job description"
                   className="p-1.5 rounded hover:bg-slate-100 text-slate-400 transition-colors"
                   title="Re-scan page"
@@ -185,7 +179,7 @@ export const MainView: React.FC = () => {
             </p>
             <div className="flex gap-2">
               <button
-                onClick={detectJobDescription}
+                onClick={() => detectJobDescription()}
                 className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-amber-200 bg-white text-amber-800 text-sm font-semibold hover:bg-amber-50 transition-colors"
               >
                 <RefreshCw size={13} /> Scan Page
@@ -217,9 +211,6 @@ export const MainView: React.FC = () => {
             <>
               <Sparkles size={18} />
               Optimize Resume
-              <span className="px-1.5 py-0.5 rounded-md bg-white/20 text-sm ml-1">
-                1 CREDIT
-              </span>
             </>
           )}
         </button>

@@ -1,6 +1,9 @@
 node_modules/
 dist/
 *.zip
+
+# Generated Tailwind artifact — Vite processes globals.css?inline; this standalone file is unused
+style.css
 .env.local
 .env
 .env.*.local

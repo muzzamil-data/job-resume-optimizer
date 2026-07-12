@@ -2,8 +2,6 @@ export { ErrorBoundary } from './ErrorBoundary';
 export { MainView } from './MainView';
 export { UploadView } from './UploadView';
 export { OptimizeView } from './OptimizeView';
-export { CreditsView } from './CreditsView';
 export { SettingsView } from './SettingsView';
-export { AuthView } from './AuthView';
 export { PasteJobView } from './PasteJobView';
 export { HistoryView } from './HistoryView';

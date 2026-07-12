@@ -7,8 +7,7 @@ import { AIService, calculateATSScoreWithBreakdown } from '../../lib/ai-service'
 import { JobScraper } from '../../lib/job-scraper';
 import { ResumeParser } from '../../lib/resume-parser';
 import { DocumentGenerator } from '../../lib/document-generator';
-import { signOut, getSession, type User } from '../../lib/supabase-client';
-import type { Resume, JobDescription, OptimizedResume, CreditBalance, ApplicationRecord } from '../../types';
+import type { Resume, JobDescription, OptimizedResume, ApplicationRecord } from '../../types';
 import { generateFilename } from '../../lib/utils';
 
 /**
@@ -28,13 +27,12 @@ function isContextInvalidated(): boolean {
 const CONTEXT_INVALIDATED_MSG =
   'Extension was updated or reloaded. Please refresh this page to continue.';
 
-export type View = 'main' | 'upload' | 'optimize' | 'credits' | 'settings' | 'paste-job' | 'auth' | 'history';
+export type View = 'main' | 'upload' | 'optimize' | 'settings' | 'paste-job' | 'history';
 
 export interface SidebarContextValue {
   // State
   view: View;
-  user: User | null;
-  credits: CreditBalance | null;
+  isConfigured: boolean;
   resume: Resume | null;
   jobDescription: JobDescription | null;
   optimizedResume: OptimizedResume | null;
@@ -60,10 +58,9 @@ export interface SidebarContextValue {
   handleDownload: (format: 'pdf' | 'docx', type: 'resume' | 'cover-letter') => Promise<void>;
   handleApplyQuickWin: (text: string, expIndex: number) => void;
   handleClearData: () => Promise<void>;
-  handleSignOut: () => Promise<void>;
   detectJobDescription: () => Promise<void>;
-  handleAuth: (user: User) => Promise<void>;
   handleUpdateApplicationStatus: (id: string, status: ApplicationRecord['status']) => Promise<void>;
+  refreshConfig: () => Promise<void>;
 }
 
 const SidebarContext = createContext<SidebarContextValue | null>(null);
@@ -76,8 +73,7 @@ export function useSidebar(): SidebarContextValue {
 
 export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [view, setView] = useState<View>('main');
-  const [user, setUser] = useState<User | null>(null);
-  const [credits, setCredits] = useState<CreditBalance | null>(null);
+  const [isConfigured, setIsConfigured] = useState(false);
   const [resume, setResume] = useState<Resume | null>(null);
   const [jobDescription, setJobDescription] = useState<JobDescription | null>(null);
   const [optimizedResume, setOptimizedResume] = useState<OptimizedResume | null>(null);
@@ -91,9 +87,55 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const lastScanRef = useRef<number>(0);
   const isOptimizingRef = useRef(false);
 
+  const detectJobDescription = useCallback(async (useAI = true) => {
+    const now = Date.now();
+    if (now - lastScanRef.current < URL_SCAN_DEBOUNCE_MS) return;
+    lastScanRef.current = now;
+    setIsDetecting(true);
+    try {
+      const scraper = new JobScraper();
+      const job = await scraper.scrapeCurrentPage(useAI);
+      if (job) {
+        setJobDescription(job as JobDescription);
+      }
+    } catch (err) {
+      if (isContextInvalidated()) { setError(CONTEXT_INVALIDATED_MSG); return; }
+      console.error('Failed to detect job:', err);
+    } finally {
+      setIsDetecting(false);
+    }
+  }, []);
+
+  const loadData = useCallback(async () => {
+    try {
+      if (isContextInvalidated()) { setError(CONTEXT_INVALIDATED_MSG); return; }
+
+      const [apiConfig, resumeData, appsData, optimizedResumesData, settings] = await Promise.all([
+        storage.getApiConfig(),
+        storage.getResume(),
+        storage.getApplications(),
+        storage.getOptimizedResumes(),
+        storage.getSettings(),
+      ]);
+      setIsConfigured(!!apiConfig.apiKey && !!apiConfig.model);
+      setResume(resumeData);
+      setApplications(appsData);
+      if (optimizedResumesData.length > 0) {
+        setOptimizedResume(optimizedResumesData[optimizedResumesData.length - 1]);
+      }
+      // Automatic detection runs DOM scrapers only — never an AI call on load.
+      // The user can trigger the AI fallback explicitly via "Scan Page".
+      if (settings.autoDetectJob) detectJobDescription(false);
+    } catch (err: any) {
+      if (isContextInvalidated()) { setError(CONTEXT_INVALIDATED_MSG); return; }
+      setError('Failed to load data');
+      console.error(err);
+    }
+  }, [detectJobDescription]);
+
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   // Auto-rescan when URL changes (handles LinkedIn / Indeed SPA navigation)
   useEffect(() => {
@@ -120,61 +162,9 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, []);
 
-  const loadData = async () => {
-    try {
-      if (isContextInvalidated()) { setError(CONTEXT_INVALIDATED_MSG); return; }
-
-      const session = await getSession();
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-
-      if (!currentUser) {
-        setView('auth');
-        return;
-      }
-
-      const [creditsData, resumeData, appsData, optimizedResumesData] = await Promise.all([
-        storage.getCredits(currentUser.id),
-        storage.getResume(),
-        storage.getApplications(),
-        storage.getOptimizedResumes(),
-      ]);
-      setCredits(creditsData);
-      setResume(resumeData);
-      setApplications(appsData);
-      if (optimizedResumesData.length > 0) {
-        setOptimizedResume(optimizedResumesData[optimizedResumesData.length - 1]);
-      }
-    } catch (err: any) {
-      if (isContextInvalidated()) { setError(CONTEXT_INVALIDATED_MSG); return; }
-      setError('Failed to load data');
-      console.error(err);
-    }
-  };
-
-  const refreshCredits = async () => {
-    if (!user) return;
-    const updated = await storage.getCredits(user.id);
-    setCredits(updated);
-  };
-
-  const detectJobDescription = useCallback(async () => {
-    const now = Date.now();
-    if (now - lastScanRef.current < URL_SCAN_DEBOUNCE_MS) return;
-    lastScanRef.current = now;
-    setIsDetecting(true);
-    try {
-      const scraper = new JobScraper();
-      const job = await scraper.scrapeCurrentPage();
-      if (job) {
-        setJobDescription(job as JobDescription);
-      }
-    } catch (err) {
-      if (isContextInvalidated()) { setError(CONTEXT_INVALIDATED_MSG); return; }
-      console.error('Failed to detect job:', err);
-    } finally {
-      setIsDetecting(false);
-    }
+  const refreshConfig = useCallback(async () => {
+    const apiConfig = await storage.getApiConfig();
+    setIsConfigured(!!apiConfig.apiKey && !!apiConfig.model);
   }, []);
 
   const handleResumeUpload = useCallback(async (file: File) => {
@@ -197,13 +187,13 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const handleOptimize = useCallback(async () => {
     if (isOptimizingRef.current) return;
-    if (!resume || !jobDescription || !credits || credits.remaining <= 0) {
-      setError('Missing requirements or no credits');
+    if (!resume || !jobDescription) {
+      setError('Upload a resume and detect a job first.');
       return;
     }
-
-    if (!user) {
-      setView('auth');
+    if (!isConfigured) {
+      setError('Add your API key and model in Settings first.');
+      setView('settings');
       return;
     }
 
@@ -252,7 +242,6 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
           : [...prev, appRecord]
       );
 
-      await refreshCredits();
       setView('optimize');
     } catch (err: any) {
       if (isContextInvalidated()) { setError(CONTEXT_INVALIDATED_MSG); return; }
@@ -261,12 +250,17 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
       isOptimizingRef.current = false;
       setIsLoading(false);
     }
-  }, [resume, jobDescription, credits, user, applications]);
+  }, [resume, jobDescription, isConfigured, applications]);
 
   const handleGenerateCoverLetter = useCallback(async (
     tone: 'professional' | 'enthusiastic' | 'technical' | 'creative'
   ) => {
-    if (!resume || !jobDescription || !user) return;
+    if (!resume || !jobDescription) return;
+    if (!isConfigured) {
+      setError('Add your API key and model in Settings first.');
+      setView('settings');
+      return;
+    }
     setIsCoverLetterLoading(true);
     setError('');
     try {
@@ -283,7 +277,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } finally {
       setIsCoverLetterLoading(false);
     }
-  }, [resume, jobDescription, user, optimizedResume]);
+  }, [resume, jobDescription, isConfigured, optimizedResume]);
 
   const handleDownload = useCallback(async (
     format: 'pdf' | 'docx',
@@ -349,41 +343,8 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setOptimizedResume(null);
     setCoverLetter('');
     setApplications([]);
-    // Re-sync credits from server — local cache was just cleared
-    if (user) {
-      const updated = await storage.getCredits(user.id);
-      setCredits(updated);
-    } else {
-      setCredits(null);
-    }
     setView('main');
-  }, [user]);
-
-  const handleSignOut = useCallback(async () => {
-    await signOut();
-    setUser(null);
-    setCredits(null);
-    setView('auth');
   }, []);
-
-  const handleAuth = useCallback(async (loggedInUser: User) => {
-    setUser(loggedInUser);
-    const [creditsData, resumeData, appsData, optimizedResumesData, settings] = await Promise.all([
-      storage.getCredits(loggedInUser.id),
-      storage.getResume(),
-      storage.getApplications(),
-      storage.getOptimizedResumes(),
-      storage.getSettings(),
-    ]);
-    setCredits(creditsData);
-    setResume(resumeData);
-    setApplications(appsData);
-    if (optimizedResumesData.length > 0) {
-      setOptimizedResume(optimizedResumesData[optimizedResumesData.length - 1]);
-    }
-    setView('main');
-    if (settings.autoDetectJob) detectJobDescription();
-  }, [detectJobDescription]);
 
   const handleUpdateApplicationStatus = useCallback(async (
     id: string,
@@ -396,12 +357,12 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [applications]);
 
   const value: SidebarContextValue = {
-    view, user, credits, resume, jobDescription, optimizedResume,
+    view, isConfigured, resume, jobDescription, optimizedResume,
     coverLetter, applications, isLoading, loadingMessage, isDetecting, isCoverLetterLoading, error,
     setView, setError, setJobDescription,
     handleResumeUpload, handleOptimize, handleGenerateCoverLetter,
-    handleDownload, handleApplyQuickWin, handleClearData, handleSignOut,
-    detectJobDescription, handleAuth, handleUpdateApplicationStatus,
+    handleDownload, handleApplyQuickWin, handleClearData,
+    detectJobDescription, handleUpdateApplicationStatus, refreshConfig,
   };
 
   return (

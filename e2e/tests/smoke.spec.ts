@@ -23,7 +23,7 @@ test.describe('Extension smoke tests', () => {
     await page.close();
   });
 
-  test('popup shows "Not signed in" when no session is stored', async ({
+  test('popup shows "Setup required" when no API key is stored', async ({
     extensionContext,
     extensionId,
     extensionWorker,
@@ -36,12 +36,11 @@ test.describe('Extension smoke tests', () => {
     const page = await extensionContext.newPage();
     await page.goto(`chrome-extension://${extensionId}/popup.html`);
 
-    await expect(page.locator('#user-status')).toContainText('Not signed in');
-    await expect(page.locator('#view-credits')).toBeHidden();
+    await expect(page.locator('#user-status')).toContainText('Setup required');
     await page.close();
   });
 
-  test('popup shows credit balance when session is present', async ({
+  test('popup shows "Ready" when an API key + model are configured', async ({
     extensionContext,
     extensionId,
     extensionWorker,
@@ -50,8 +49,11 @@ test.describe('Extension smoke tests', () => {
       new Promise<void>(resolve =>
         chrome.storage.local.set(
           {
-            sb_access_token: 'fake-token',
-            creditBalance: { total: 100, used: 10, remaining: 90 },
+            apiConfig: {
+              baseUrl: 'https://api.openai.com/v1',
+              apiKey: 'sk-test-token',
+              model: 'gpt-4o-mini',
+            },
           },
           () => resolve(),
         ),
@@ -61,8 +63,8 @@ test.describe('Extension smoke tests', () => {
     const page = await extensionContext.newPage();
     await page.goto(`chrome-extension://${extensionId}/popup.html`);
 
-    await expect(page.locator('#user-status')).toContainText('Signed in');
-    await expect(page.locator('#credits-text')).toContainText('90 credits remaining');
+    await expect(page.locator('#user-status')).toContainText('Ready');
+    await expect(page.locator('#status-detail')).toContainText('your own API key');
 
     // Cleanup
     await extensionWorker.evaluate(

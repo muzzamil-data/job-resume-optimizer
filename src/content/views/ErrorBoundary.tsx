@@ -1,6 +1,5 @@
 import React, { Component } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
-import { logError } from '../../lib/supabase-client';
 
 function isContextInvalidated(): boolean {
   try {
@@ -22,9 +21,8 @@ export class ErrorBoundary extends Component<
     return { error };
   }
   componentDidCatch(error: Error) {
-    // Don't try to log to Supabase if the extension context is dead
     if (isContextInvalidated()) return;
-    logError('react_boundary', null, 'render_error', error.message, {});
+    console.error('[ErrorBoundary]', error.message);
   }
   render() {
     if (this.state.error) {

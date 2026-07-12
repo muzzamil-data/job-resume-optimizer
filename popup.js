@@ -1,37 +1,26 @@
-// Popup script for extension icon
+// Popup script for the extension icon.
 document.addEventListener('DOMContentLoaded', async () => {
-  const statusEl = document.getElementById('credits-text');
+  const statusEl = document.getElementById('status-detail');
   const userEl = document.getElementById('user-status');
   const openSidebarBtn = document.getElementById('open-sidebar');
-  const viewCreditsBtn = document.getElementById('view-credits');
 
-  // Check login state and load credit balance from chrome.storage.
-  // The sidebar writes the Supabase-fetched balance back to chrome.storage
-  // every time it loads, so this value stays fresh.
+  // Reflect whether the user has configured a provider + key yet.
   try {
-    const result = await chrome.storage.local.get(['sb_access_token', 'creditBalance']);
-    const isLoggedIn = !!result.sb_access_token;
-    const credits = result.creditBalance;
-
-    if (!isLoggedIn) {
-      userEl.textContent = 'Not signed in';
-      statusEl.textContent = 'Sign in to use the optimizer';
-      viewCreditsBtn.style.display = 'none';
+    const { apiConfig } = await chrome.storage.local.get('apiConfig');
+    const configured = !!(apiConfig && apiConfig.apiKey && apiConfig.model);
+    if (configured) {
+      userEl.textContent = 'Ready';
+      statusEl.textContent = 'Using your own API key on this device.';
     } else {
-      userEl.textContent = 'Signed in';
-      if (credits && typeof credits.remaining === 'number') {
-        const label = credits.remaining === 1 ? 'credit' : 'credits';
-        statusEl.textContent = `${credits.remaining} ${label} remaining`;
-      } else {
-        statusEl.textContent = '100 credits remaining';
-      }
+      userEl.textContent = 'Setup required';
+      statusEl.textContent = 'Open the optimizer and add your API key in Settings.';
     }
   } catch (err) {
     console.error('Failed to load popup data:', err);
     statusEl.textContent = 'Error loading status';
   }
 
-  const openSidebar = async (view) => {
+  const openSidebar = async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) return;
 
@@ -41,20 +30,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-      const message = { action: 'toggleSidebar' };
-      if (view) message.view = view;
-      await chrome.tabs.sendMessage(tab.id, message);
+      await chrome.tabs.sendMessage(tab.id, { action: 'toggleSidebar' });
       window.close();
     } catch (err) {
       try {
         await chrome.scripting.executeScript({
           target: { tabId: tab.id },
-          files: ['src/content/index.js']
+          files: ['src/content/index.js'],
         });
         await new Promise(resolve => setTimeout(resolve, 150));
-        const message = { action: 'toggleSidebar' };
-        if (view) message.view = view;
-        await chrome.tabs.sendMessage(tab.id, message);
+        await chrome.tabs.sendMessage(tab.id, { action: 'toggleSidebar' });
         window.close();
       } catch (err2) {
         console.error('Failed to open sidebar:', err2);
@@ -64,5 +49,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   openSidebarBtn.addEventListener('click', () => openSidebar());
-  viewCreditsBtn.addEventListener('click', () => openSidebar('credits'));
 });
