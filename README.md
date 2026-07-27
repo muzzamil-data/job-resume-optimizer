@@ -71,3 +71,11 @@ Load the `dist/` folder as an unpacked extension (see [Install](#install-load-un
 ### Privacy
 
 See [PRIVACY.md](PRIVACY.md). In short: everything is local except the resume and job text that go directly to the AI provider you choose. This project operates no servers and receives none of your data.
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE) © TailorCV Contributors

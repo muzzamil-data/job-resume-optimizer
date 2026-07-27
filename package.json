@@ -1,12 +1,14 @@
 {
   "name": "tailorcv",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Open-source, bring-your-own-key AI resume optimizer and cover letter generator. Runs entirely in your browser against your own AI provider key.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
