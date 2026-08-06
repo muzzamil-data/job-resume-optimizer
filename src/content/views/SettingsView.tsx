@@ -3,12 +3,16 @@ import { KeyRound, CheckCircle2, Loader2 } from 'lucide-react';
 import { useSidebar } from '../context';
 import { storage } from '../../lib/storage';
 import type { ApiConfig } from '../../types';
+import type { BackgroundRequest } from '../../types/runtime-messages';
 
 // A few common OpenAI-compatible endpoints, offered as one-click base-URL presets.
 const PRESETS: Array<{ label: string; baseUrl: string; modelHint: string }> = [
-  { label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', modelHint: 'gpt-4o-mini' },
+  { label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', modelHint: 'gpt-4o' },
   { label: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', modelHint: 'anthropic/claude-haiku-4.5' },
+  { label: 'Moonshot (Kimi)', baseUrl: 'https://api.moonshot.ai/v1', modelHint: 'kimi-k2-0711-preview' },
+  { label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', modelHint: 'deepseek-chat' },
   { label: 'Groq', baseUrl: 'https://api.groq.com/openai/v1', modelHint: 'llama-3.3-70b-versatile' },
+  { label: 'Together', baseUrl: 'https://api.together.xyz/v1', modelHint: 'meta-llama/Llama-3.3-70B-Instruct-Turbo' },
   { label: 'Ollama (local)', baseUrl: 'http://localhost:11434/v1', modelHint: 'llama3.1' },
 ];
 
@@ -47,13 +51,14 @@ export const SettingsView: React.FC = () => {
     await save();
     setTest({ status: 'testing' });
     try {
-      const res = await chrome.runtime.sendMessage({
-        action: 'callClaudeFree',
+      const request = {
+        action: 'generateTextWithAI',
         payload: {
           messages: [{ role: 'user', content: 'Reply with the single word: OK' }],
           maxTokens: 5,
         },
-      });
+      } satisfies BackgroundRequest;
+      const res = await chrome.runtime.sendMessage(request);
       if (res?.success) {
         setTest({ status: 'ok', message: 'Connection works.' });
       } else {
@@ -89,7 +94,7 @@ export const SettingsView: React.FC = () => {
           {PRESETS.map(p => (
             <button
               key={p.label}
-              onClick={() => update({ baseUrl: p.baseUrl })}
+              onClick={() => update({ baseUrl: p.baseUrl, model: config.model.trim() || p.modelHint })}
               className={`px-2.5 py-1 rounded-lg border text-sm font-medium transition-colors ${
                 config.baseUrl === p.baseUrl
                   ? 'border-primary bg-primary/10 text-primary'

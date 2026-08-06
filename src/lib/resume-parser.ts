@@ -1,4 +1,5 @@
 import type { ParsedResume, Resume } from '../types';
+import type { BackgroundRequest, BackgroundResponse } from '../types/runtime-messages';
 import { isContextInvalidatedError, EXTENSION_RELOAD_MSG } from './utils';
 type ParsedResumeResponse = { success: boolean; data?: Partial<ParsedResume>; error?: string };
 
@@ -55,12 +56,13 @@ export class ResumeParser {
     for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
     const base64 = btoa(binary);
 
-    let parseResponse: { success: boolean; rawText?: string; error?: string };
+    let parseResponse: BackgroundResponse;
     try {
-      parseResponse = await chrome.runtime.sendMessage({
+      const request = {
         action: 'parseFile',
         payload: { buffer: base64, fileType },
-      });
+      } satisfies BackgroundRequest;
+      parseResponse = await chrome.runtime.sendMessage(request);
     } catch (err) {
       if (isContextInvalidatedError(err)) throw new Error(EXTENSION_RELOAD_MSG);
       throw err;
@@ -93,11 +95,11 @@ export class ResumeParser {
       // 12,000 chars covers a dense 3-page resume; 6,000 was cutting
       // 2-page resumes in half before the AI ever saw them.
       const truncated = rawText.slice(0, 12_000);
-      const response: ParsedResumeResponse =
-        await chrome.runtime.sendMessage({
+      const request = {
           action: 'parseResume',
           payload: { rawText: truncated },
-        });
+      } satisfies BackgroundRequest;
+      const response: ParsedResumeResponse = await chrome.runtime.sendMessage(request);
 
       if (response.success && response.data) {
         const data = response.data;
@@ -124,7 +126,7 @@ export class ResumeParser {
     return this.extractLocally(rawText);
   }
 
-  private extractLocally(text: string): ParsedResume {
+  extractLocally(text: string): ParsedResume {
     const lines = text.split('\n').map(l => l.trim()).filter(l => l);
     const coreCompetencies = this.extractCoreCompetencies(text);
 

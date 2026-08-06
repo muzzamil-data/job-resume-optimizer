@@ -32,10 +32,15 @@ Common setups:
 
 | Provider | Base URL | Example model |
 |---|---|---|
-| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o` |
 | OpenRouter | `https://openrouter.ai/api/v1` | `anthropic/claude-haiku-4.5` |
+| Moonshot (Kimi) | `https://api.moonshot.ai/v1` | `kimi-k2-0711-preview` |
+| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
 | Groq | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
+| Together | `https://api.together.xyz/v1` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` |
 | Ollama (local) | `http://localhost:11434/v1` | `llama3.1` |
+
+> Local Ollama models are small and give weaker resume output. For best results use a hosted frontier model (OpenAI, Kimi K2, DeepSeek, or a Claude model via OpenRouter).
 
 Any endpoint that implements the OpenAI `POST /chat/completions` API will work.
 

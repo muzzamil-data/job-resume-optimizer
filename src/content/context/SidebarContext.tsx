@@ -1,14 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 
-const URL_SCAN_DEBOUNCE_MS = 15_000;
-
 import { storage } from '../../lib/storage';
-import { AIService, calculateATSScoreWithBreakdown } from '../../lib/ai-service';
-import { JobScraper } from '../../lib/job-scraper';
 import { ResumeParser } from '../../lib/resume-parser';
-import { DocumentGenerator } from '../../lib/document-generator';
 import type { Resume, JobDescription, OptimizedResume, ApplicationRecord } from '../../types';
-import { generateFilename } from '../../lib/utils';
+import {
+  applyQuickWin,
+  exportDocument,
+  generateCoverLetter,
+  optimizeForJob,
+  type CoverLetterTone,
+  type ExportFormat,
+  type ExportType,
+} from './sidebar-workflows';
+import { useJobDetection } from './use-job-detection';
 
 /**
  * Returns true if the extension context has been invalidated
@@ -54,8 +58,8 @@ export interface SidebarContextValue {
   // Actions
   handleResumeUpload: (file: File) => Promise<void>;
   handleOptimize: () => Promise<void>;
-  handleGenerateCoverLetter: (tone: 'professional' | 'enthusiastic' | 'technical' | 'creative') => Promise<void>;
-  handleDownload: (format: 'pdf' | 'docx', type: 'resume' | 'cover-letter') => Promise<void>;
+  handleGenerateCoverLetter: (tone: CoverLetterTone) => Promise<void>;
+  handleDownload: (format: ExportFormat, type: ExportType) => Promise<void>;
   handleApplyQuickWin: (text: string, expIndex: number) => void;
   handleClearData: () => Promise<void>;
   detectJobDescription: () => Promise<void>;
@@ -75,36 +79,21 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [view, setView] = useState<View>('main');
   const [isConfigured, setIsConfigured] = useState(false);
   const [resume, setResume] = useState<Resume | null>(null);
-  const [jobDescription, setJobDescription] = useState<JobDescription | null>(null);
   const [optimizedResume, setOptimizedResume] = useState<OptimizedResume | null>(null);
   const [coverLetter, setCoverLetter] = useState<string>('');
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
-  const [isDetecting, setIsDetecting] = useState(false);
   const [isCoverLetterLoading, setIsCoverLetterLoading] = useState(false);
   const [error, setError] = useState<string>('');
-  const lastScanRef = useRef<number>(0);
   const isOptimizingRef = useRef(false);
-
-  const detectJobDescription = useCallback(async (useAI = true) => {
-    const now = Date.now();
-    if (now - lastScanRef.current < URL_SCAN_DEBOUNCE_MS) return;
-    lastScanRef.current = now;
-    setIsDetecting(true);
-    try {
-      const scraper = new JobScraper();
-      const job = await scraper.scrapeCurrentPage(useAI);
-      if (job) {
-        setJobDescription(job as JobDescription);
-      }
-    } catch (err) {
-      if (isContextInvalidated()) { setError(CONTEXT_INVALIDATED_MSG); return; }
-      console.error('Failed to detect job:', err);
-    } finally {
-      setIsDetecting(false);
-    }
-  }, []);
+  const handleContextInvalidated = useCallback(() => setError(CONTEXT_INVALIDATED_MSG), []);
+  const {
+    jobDescription,
+    setJobDescription,
+    isDetecting,
+    detectJobDescription,
+  } = useJobDetection({ onContextInvalidated: handleContextInvalidated });
 
   const loadData = useCallback(async () => {
     try {
@@ -136,31 +125,6 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  // Auto-rescan when URL changes (handles LinkedIn / Indeed SPA navigation)
-  useEffect(() => {
-    let lastUrl = window.location.href;
-
-    const checkUrl = () => {
-      if (window.location.href !== lastUrl) {
-        lastUrl = window.location.href;
-        setJobDescription(null);
-      }
-    };
-
-    const titleEl = document.querySelector('title');
-    const titleObserver = new MutationObserver(checkUrl);
-    if (titleEl) {
-      titleObserver.observe(titleEl, { subtree: true, childList: true, characterData: true });
-    }
-
-    window.addEventListener('popstate', checkUrl);
-
-    return () => {
-      titleObserver.disconnect();
-      window.removeEventListener('popstate', checkUrl);
-    };
-  }, []);
 
   const refreshConfig = useCallback(async () => {
     const apiConfig = await storage.getApiConfig();
@@ -203,43 +167,17 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setError('');
 
     try {
-      const aiService = new AIService();
-      const result = await aiService.optimizeResume(resume.parsedData, jobDescription);
-
-      const optimized: OptimizedResume = {
-        id: crypto.randomUUID(),
-        originalResumeId: resume.id,
-        jobDescriptionUrl: jobDescription.url,
-        optimizedContent: result.optimized,
-        atsScore: result.atsScore,
-        keywordMatches: result.keywords,
-        scoring: result.scoring,
-        gaps: result.gaps,
-        recommendations: result.recommendations,
-        createdAt: new Date(),
-      };
+      const { optimized, application } = await optimizeForJob(resume, jobDescription, applications);
 
       await storage.saveOptimizedResume(optimized);
       setOptimizedResume(optimized);
       setCoverLetter('');
 
-      const existingApp = applications.find(a => a.url === jobDescription.url);
-      const appRecord: ApplicationRecord = existingApp
-        ? { ...existingApp, resumeId: optimized.id, appliedAt: new Date() }
-        : {
-            id: crypto.randomUUID(),
-            jobTitle: jobDescription.title,
-            company: jobDescription.company,
-            url: jobDescription.url,
-            appliedAt: new Date(),
-            resumeId: optimized.id,
-            status: 'applied',
-          };
-      await storage.saveApplication(appRecord);
+      await storage.saveApplication(application);
       setApplications(prev =>
-        existingApp
-          ? prev.map(a => a.id === existingApp.id ? appRecord : a)
-          : [...prev, appRecord]
+        prev.some(item => item.id === application.id)
+          ? prev.map(item => item.id === application.id ? application : item)
+          : [...prev, application]
       );
 
       setView('optimize');
@@ -253,7 +191,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [resume, jobDescription, isConfigured, applications]);
 
   const handleGenerateCoverLetter = useCallback(async (
-    tone: 'professional' | 'enthusiastic' | 'technical' | 'creative'
+    tone: CoverLetterTone
   ) => {
     if (!resume || !jobDescription) return;
     if (!isConfigured) {
@@ -264,8 +202,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setIsCoverLetterLoading(true);
     setError('');
     try {
-      const aiService = new AIService();
-      const letter = await aiService.generateCoverLetter(
+      const letter = await generateCoverLetter(
         optimizedResume?.optimizedContent ?? resume.parsedData,
         jobDescription,
         tone
@@ -280,36 +217,12 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [resume, jobDescription, isConfigured, optimizedResume]);
 
   const handleDownload = useCallback(async (
-    format: 'pdf' | 'docx',
-    type: 'resume' | 'cover-letter'
+    format: ExportFormat,
+    type: ExportType
   ) => {
     if (!optimizedResume || !jobDescription) return;
     try {
-      const generator = new DocumentGenerator();
-      const filename = generateFilename(type, jobDescription.title, jobDescription.company);
-      if (type === 'resume') {
-        const blob = format === 'pdf'
-          ? await generator.generatePDF(optimizedResume.optimizedContent, jobDescription.title)
-          : await generator.generateDOCX(optimizedResume.optimizedContent, jobDescription.title);
-        generator.downloadBlob(blob, `${filename}.${format}`);
-      } else {
-        const blob = format === 'pdf'
-          ? await generator.generateCoverLetterPDF(
-              coverLetter,
-              optimizedResume.optimizedContent.name,
-              optimizedResume.optimizedContent.email,
-              optimizedResume.optimizedContent.phone,
-              optimizedResume.optimizedContent.location
-            )
-          : await generator.generateCoverLetterDOCX(
-              coverLetter,
-              optimizedResume.optimizedContent.name,
-              optimizedResume.optimizedContent.email,
-              optimizedResume.optimizedContent.phone,
-              optimizedResume.optimizedContent.location
-            );
-        generator.downloadBlob(blob, `${filename}.${format}`);
-      }
+      await exportDocument(format, type, optimizedResume, jobDescription, coverLetter);
     } catch (err) {
       if (isContextInvalidated()) { setError(CONTEXT_INVALIDATED_MSG); return; }
       setError('Download failed');
@@ -319,19 +232,8 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const handleApplyQuickWin = useCallback((text: string, expIndex: number) => {
     if (!optimizedResume || !jobDescription) return;
-    const exp = [...optimizedResume.optimizedContent.experience];
-    if (!exp[expIndex]) return;
-    exp[expIndex] = { ...exp[expIndex], bullets: [...exp[expIndex].bullets, text] };
-    const updatedContent = { ...optimizedResume.optimizedContent, experience: exp };
-
-    const newScoring = calculateATSScoreWithBreakdown(updatedContent, jobDescription);
-
-    const updated: OptimizedResume = {
-      ...optimizedResume,
-      optimizedContent: updatedContent,
-      atsScore: newScoring.total,
-      scoring: newScoring,
-    };
+    const updated = applyQuickWin(optimizedResume, jobDescription, text, expIndex);
+    if (!updated) return;
     setOptimizedResume(updated);
     storage.saveOptimizedResume(updated).catch(err => console.error('Failed to persist quick win:', err));
   }, [optimizedResume, jobDescription]);

@@ -17,6 +17,8 @@ interface SidebarProps {
   onClose: () => void;
 }
 
+const EXTENSION_VERSION = chrome.runtime.getManifest().version;
+
 const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { view, setView, isLoading, loadingMessage, error, setError, optimizedResume } = useSidebar();
 
@@ -99,7 +101,7 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
       {/* Status bar */}
       <footer className="px-5 py-3 border-t border-slate-100 flex justify-between items-center text-sm text-slate-400 uppercase tracking-widest font-medium shrink-0">
-        <span>v1.0.0 &middot; AI-Powered</span>
+        <span>v{EXTENSION_VERSION} &middot; AI-Powered</span>
         <div role="status" className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
           System Ready
