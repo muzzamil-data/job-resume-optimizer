@@ -42,7 +42,15 @@ export async function injectApiConfig(sw: Worker): Promise<void> {
   await sw.evaluate(
     (config) =>
       new Promise<void>(resolve =>
-        chrome.storage.local.set({ apiConfig: config }, () => resolve()),
+        chrome.storage.local.set({
+          apiConfig: config,
+          userSettings: {
+            defaultTone: 'professional',
+            autoDetectJob: true,
+            showATSScore: true,
+            onboardingCompleted: true,
+          },
+        }, () => resolve()),
       ),
     MOCK_API_CONFIG,
   );
@@ -51,6 +59,6 @@ export async function injectApiConfig(sw: Worker): Promise<void> {
 /** Clear all extension storage keys (call in afterEach to reset state). */
 export async function clearExtensionStorage(sw: Worker): Promise<void> {
   await sw.evaluate(
-    () => new Promise<void>(resolve => chrome.storage.local.clear(() => resolve())),
+    () => Promise.all([chrome.storage.local.clear(), chrome.storage.session.clear()]).then(() => undefined),
   );
 }

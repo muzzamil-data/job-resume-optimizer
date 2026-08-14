@@ -37,6 +37,7 @@ export interface SidebarContextValue {
   // State
   view: View;
   isConfigured: boolean;
+  onboardingCompleted: boolean;
   resume: Resume | null;
   jobDescription: JobDescription | null;
   optimizedResume: OptimizedResume | null;
@@ -65,6 +66,8 @@ export interface SidebarContextValue {
   detectJobDescription: () => Promise<void>;
   handleUpdateApplicationStatus: (id: string, status: ApplicationRecord['status']) => Promise<void>;
   refreshConfig: () => Promise<void>;
+  reloadStoredData: () => Promise<void>;
+  skipResumeOnboarding: () => Promise<void>;
 }
 
 const SidebarContext = createContext<SidebarContextValue | null>(null);
@@ -78,6 +81,7 @@ export function useSidebar(): SidebarContextValue {
 export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [view, setView] = useState<View>('main');
   const [isConfigured, setIsConfigured] = useState(false);
+  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
   const [resume, setResume] = useState<Resume | null>(null);
   const [optimizedResume, setOptimizedResume] = useState<OptimizedResume | null>(null);
   const [coverLetter, setCoverLetter] = useState<string>('');
@@ -88,16 +92,24 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [error, setError] = useState<string>('');
   const isOptimizingRef = useRef(false);
   const handleContextInvalidated = useCallback(() => setError(CONTEXT_INVALIDATED_MSG), []);
+  const handleScanError = useCallback((message: string) => setError(message), []);
+  const clearScanError = useCallback(() => setError(''), []);
   const {
     jobDescription,
     setJobDescription,
     isDetecting,
     detectJobDescription,
-  } = useJobDetection({ onContextInvalidated: handleContextInvalidated });
+  } = useJobDetection({
+    onContextInvalidated: handleContextInvalidated,
+    onScanError: handleScanError,
+    onClearError: clearScanError,
+  });
 
   const loadData = useCallback(async () => {
     try {
       if (isContextInvalidated()) { setError(CONTEXT_INVALIDATED_MSG); return; }
+
+      await storage.initialize();
 
       const [apiConfig, resumeData, appsData, optimizedResumesData, settings] = await Promise.all([
         storage.getApiConfig(),
@@ -107,6 +119,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
         storage.getSettings(),
       ]);
       setIsConfigured(!!apiConfig.apiKey && !!apiConfig.model);
+      setOnboardingCompleted(!!settings.onboardingCompleted || !!resumeData);
       setResume(resumeData);
       setApplications(appsData);
       if (optimizedResumesData.length > 0) {
@@ -114,11 +127,11 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       // Automatic detection runs DOM scrapers only — never an AI call on load.
       // The user can trigger the AI fallback explicitly via "Scan Page".
-      if (settings.autoDetectJob) detectJobDescription(false);
+      if (settings.autoDetectJob) detectJobDescription('automatic');
     } catch (err: any) {
       if (isContextInvalidated()) { setError(CONTEXT_INVALIDATED_MSG); return; }
       setError('Failed to load data');
-      console.error(err);
+      console.error('Failed to load stored extension data.');
     }
   }, [detectJobDescription]);
 
@@ -131,6 +144,11 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setIsConfigured(!!apiConfig.apiKey && !!apiConfig.model);
   }, []);
 
+  const skipResumeOnboarding = useCallback(async () => {
+    await storage.updateSettings({ onboardingCompleted: true });
+    setOnboardingCompleted(true);
+  }, []);
+
   const handleResumeUpload = useCallback(async (file: File) => {
     setIsLoading(true);
     setLoadingMessage('Reading your resume...');
@@ -139,7 +157,9 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const parser = new ResumeParser();
       const parsedResume = await parser.parseFile(file);
       await storage.saveResume(parsedResume);
+      await storage.updateSettings({ onboardingCompleted: true });
       setResume(parsedResume);
+      setOnboardingCompleted(true);
       setView('main');
     } catch (err: any) {
       if (isContextInvalidated()) { setError(CONTEXT_INVALIDATED_MSG); return; }
@@ -226,7 +246,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch (err) {
       if (isContextInvalidated()) { setError(CONTEXT_INVALIDATED_MSG); return; }
       setError('Download failed');
-      console.error(err);
+      console.error('Document download failed.');
     }
   }, [optimizedResume, jobDescription, coverLetter]);
 
@@ -235,7 +255,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const updated = applyQuickWin(optimizedResume, jobDescription, text, expIndex);
     if (!updated) return;
     setOptimizedResume(updated);
-    storage.saveOptimizedResume(updated).catch(err => console.error('Failed to persist quick win:', err));
+    storage.saveOptimizedResume(updated).catch(() => console.error('Failed to persist a resume update.'));
   }, [optimizedResume, jobDescription]);
 
   const handleClearData = useCallback(async () => {
@@ -245,6 +265,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setOptimizedResume(null);
     setCoverLetter('');
     setApplications([]);
+    setOnboardingCompleted(false);
     setView('main');
   }, []);
 
@@ -259,12 +280,12 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [applications]);
 
   const value: SidebarContextValue = {
-    view, isConfigured, resume, jobDescription, optimizedResume,
+    view, isConfigured, onboardingCompleted, resume, jobDescription, optimizedResume,
     coverLetter, applications, isLoading, loadingMessage, isDetecting, isCoverLetterLoading, error,
     setView, setError, setJobDescription,
     handleResumeUpload, handleOptimize, handleGenerateCoverLetter,
     handleDownload, handleApplyQuickWin, handleClearData,
-    detectJobDescription, handleUpdateApplicationStatus, refreshConfig,
+    detectJobDescription, handleUpdateApplicationStatus, refreshConfig, reloadStoredData: loadData, skipResumeOnboarding,
   };
 
   return (

@@ -30,18 +30,18 @@ export async function optimizeForJob(
     scoring: result.scoring,
     gaps: result.gaps,
     recommendations: result.recommendations,
-    createdAt: new Date(),
+    createdAt: new Date().toISOString(),
   };
 
   const existing = applications.find(application => application.url === job.url);
   const application: ApplicationRecord = existing
-    ? { ...existing, resumeId: optimized.id, appliedAt: new Date() }
+    ? { ...existing, resumeId: optimized.id, appliedAt: new Date().toISOString() }
     : {
         id: crypto.randomUUID(),
         jobTitle: job.title,
         company: job.company,
         url: job.url,
-        appliedAt: new Date(),
+        appliedAt: new Date().toISOString(),
         resumeId: optimized.id,
         status: 'applied',
       };

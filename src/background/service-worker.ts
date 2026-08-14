@@ -36,6 +36,11 @@ import {
 (globalThis as Record<string, unknown>).pdfjsWorker = { WorkerMessageHandler };
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'unused';
 
+// Content-script UI runs in Chrome's isolated world. Grant that extension
+// context access to session storage so Settings can manage a session-only key;
+// webpage JavaScript still cannot access chrome.storage.
+chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' });
+
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
     chrome.storage.local.set({
@@ -43,6 +48,8 @@ chrome.runtime.onInstalled.addListener((details) => {
         defaultTone: 'professional',
         autoDetectJob: true,
         showATSScore: true,
+        onboardingCompleted: false,
+        rememberApiKey: true,
       },
       apiConfig: {
         baseUrl: 'https://api.openai.com/v1',
@@ -144,7 +151,7 @@ chrome.runtime.onMessage.addListener((request: BackgroundRequest, sender, sendRe
       const pageText = requireString(request.payload?.pageText, 'pageText');
       const sanitized = sanitizeUserContent(pageText.slice(0, 5000));
       const prompt = buildJobScrapePrompt(sanitized);
-      callProvider(undefined, [{ role: 'user', content: prompt }], 1500, ACTION_TIMEOUT_MS.scrapeJobWithAI)
+      callProvider(undefined, [{ role: 'user', content: prompt }], 1500, ACTION_TIMEOUT_MS.scrapeJobWithAI, 1, true)
         .then(text => sendResponse({ success: true, data: extractAndParseJSON(text) }))
         .catch(err => sendResponse({ success: false, error: sanitizeErrorMessage(err.message) }));
     } catch (err: any) {
@@ -160,7 +167,7 @@ chrome.runtime.onMessage.addListener((request: BackgroundRequest, sender, sendRe
       const localPII = extractLocalPII(rawText);
       const sanitizedResume = sanitizeUserContent(localPII.redacted);
       const prompt = buildResumeParsePrompt(sanitizedResume);
-      callProvider(undefined, [{ role: 'user', content: prompt }], 8192, ACTION_TIMEOUT_MS.parseResume)
+      callProvider(undefined, [{ role: 'user', content: prompt }], 8192, ACTION_TIMEOUT_MS.parseResume, 1, true)
         .then(text => {
           const data = extractAndParseJSON(text);
           // Restore PII from local extraction — overwrite anything the AI may have guessed
@@ -209,8 +216,8 @@ chrome.runtime.onMessage.addListener((request: BackgroundRequest, sender, sendRe
           let pdf: Awaited<typeof loadingTask.promise>;
           try {
             pdf = await loadingTask.promise;
-          } catch (err: unknown) {
-            console.error('[parseFile] pdfjs error:', err instanceof Error ? err.message : err);
+          } catch {
+            console.error('[parseFile] PDF parsing failed.');
             await loadingTask.destroy();
             throw new Error('Could not read the PDF file. Try converting it to DOCX and uploading that instead.');
           }
@@ -262,7 +269,14 @@ chrome.runtime.onMessage.addListener((request: BackgroundRequest, sender, sendRe
 
       const fallbackTokens = request.action === 'optimizeResumeWithAI' ? 4096 : 2000;
       const timeoutMs = ACTION_TIMEOUT_MS[request.action] ?? DEFAULT_TIMEOUT_MS;
-      callProvider(system, messages, clampTokens(maxTokens, fallbackTokens), timeoutMs)
+      callProvider(
+        system,
+        messages,
+        clampTokens(maxTokens, fallbackTokens),
+        timeoutMs,
+        1,
+        request.action === 'optimizeResumeWithAI',
+      )
         .then(text => sendResponse({ success: true, data: { text } }))
         .catch(err => sendResponse({ success: false, error: sanitizeErrorMessage(err.message) }));
     } catch (err: any) {

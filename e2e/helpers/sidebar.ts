@@ -23,8 +23,9 @@ const JOB_PAGE_HTML = `<!DOCTYPE html>
   <title>Software Engineer – Acme Corp</title>
 </head>
 <body>
-  <h1>Software Engineer</h1>
-  <section>
+  <div class="job-details-jobs-unified-top-card__job-title"><h1>Software Engineer</h1></div>
+  <div class="job-details-jobs-unified-top-card__company-name">Acme Corp</div>
+  <section id="job-details">
     <h2>About the Role</h2>
     <p>We are looking for a Software Engineer with 3+ years of experience in
        TypeScript, React, and Node.js to join our growing team.</p>
@@ -34,6 +35,7 @@ const JOB_PAGE_HTML = `<!DOCTYPE html>
       <li>Proficiency with React and modern frontend tooling</li>
       <li>Familiarity with REST APIs and cloud infrastructure</li>
     </ul>
+    <p>Work with product and design partners to deliver reliable customer-facing software and improve engineering practices.</p>
   </section>
 </body>
 </html>`;

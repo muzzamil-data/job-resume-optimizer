@@ -85,7 +85,7 @@ export class ResumeParser {
       fileType,
       content: rawText,
       parsedData,
-      uploadedAt: new Date(),
+      uploadedAt: new Date().toISOString(),
     };
   }
 
@@ -119,8 +119,8 @@ export class ResumeParser {
           raw: rawText,
         };
       }
-    } catch (e) {
-      console.warn('AI resume parsing failed, using local extraction:', e);
+    } catch {
+      console.warn('AI resume parsing failed; using local extraction.');
     }
 
     return this.extractLocally(rawText);

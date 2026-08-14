@@ -17,15 +17,14 @@ type ScrapedJobData = {
   keywords?: string[];
 };
 type AiScrapeResponse = { success: boolean; data?: ScrapedJobData; error?: string };
+export type JobScanMode = 'manual' | 'automatic';
 
 export class JobScraper {
   /**
-   * @param useAI When true, fall back to a Claude call if the DOM scrapers find
-   *   nothing. Pass false for automatic detection (login / SPA navigation) so we
-   *   never fire an API request the user didn't ask for; the AI fallback then
-   *   runs only on an explicit user-initiated scan.
+   * Automatic scans remain local. Manual scans may use the configured AI
+   * provider after board-specific and generic DOM extraction fail.
    */
-  async scrapeCurrentPage(useAI = true): Promise<JobDescription | null> {
+  async scrapeCurrentPage(mode: JobScanMode = 'manual'): Promise<JobDescription | null> {
     const url = window.location.href;
 
     // Try DOM scrapers immediately
@@ -44,7 +43,7 @@ export class JobScraper {
 
     // AI fallback — works on ANY site where selectors failed.
     // Only on an explicit user-initiated scan, never on automatic detection.
-    if (useAI && !jobData) {
+    if (mode === 'manual' && !jobData) {
       jobData = await this.scrapeWithAI();
     }
 
@@ -54,7 +53,7 @@ export class JobScraper {
 
     // No match is expected on non-job pages; keep it out of the extension error
     // panel (console.debug is not collected like warn/error).
-    console.debug('[JobScraper] No job posting detected for:', url);
+    console.debug('[JobScraper] No job posting detected.');
     return null;
   }
 
@@ -141,7 +140,10 @@ export class JobScraper {
       } satisfies BackgroundRequest;
       const response: AiScrapeResponse = await chrome.runtime.sendMessage(request);
 
-      if (!response.success || !response.data?.isJobPosting) return null;
+      if (!response.success) {
+        throw new Error(response.error || 'The AI provider could not scan this page.');
+      }
+      if (!response.data?.isJobPosting) return null;
 
       const data = response.data;
       return {
@@ -152,8 +154,8 @@ export class JobScraper {
         keywords: this.extractKeywords(data.description || ''),
       };
     } catch (err) {
-      console.warn('[JobScraper] AI fallback failed:', err);
-      return null;
+      console.warn('[JobScraper] AI fallback failed.');
+      throw err instanceof Error ? err : new Error('The AI provider could not scan this page.');
     }
   }
 
@@ -166,8 +168,8 @@ export class JobScraper {
         .replace(/[ \t]+/g, ' ')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
-    } catch (err) {
-      console.warn('[JobScraper] extractPageText failed:', err);
+    } catch {
+      console.warn('[JobScraper] Page text extraction failed.');
       return '';
     }
   }

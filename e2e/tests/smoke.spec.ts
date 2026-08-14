@@ -30,7 +30,7 @@ test.describe('Extension smoke tests', () => {
   }) => {
     // Ensure storage is clean
     await extensionWorker.evaluate(
-      () => new Promise<void>(resolve => chrome.storage.local.clear(() => resolve())),
+      () => Promise.all([chrome.storage.local.clear(), chrome.storage.session.clear()]).then(() => undefined),
     );
 
     const page = await extensionContext.newPage();
@@ -68,7 +68,7 @@ test.describe('Extension smoke tests', () => {
 
     // Cleanup
     await extensionWorker.evaluate(
-      () => new Promise<void>(resolve => chrome.storage.local.clear(() => resolve())),
+      () => Promise.all([chrome.storage.local.clear(), chrome.storage.session.clear()]).then(() => undefined),
     );
     await page.close();
   });

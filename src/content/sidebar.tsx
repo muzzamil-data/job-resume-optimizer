@@ -1,8 +1,8 @@
 import React from 'react';
 import { X, AlertTriangle, Clock, RefreshCw } from 'lucide-react';
+import logoUrl from '../../icons/logo48.png?inline';
 
 import { SidebarProvider, useSidebar } from './context';
-import { LOGO_DATA_URI } from './logo';
 import {
   ErrorBoundary,
   MainView,
@@ -27,7 +27,7 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       {/* Header */}
       <header className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white sticky top-0 z-10 shrink-0">
         <div className="flex items-center gap-2.5">
-          <img src={LOGO_DATA_URI} alt="TailorCV logo" className="w-9 h-9 rounded-lg shrink-0" />
+          <img src={logoUrl} alt="TailorCV logo" className="w-9 h-9 rounded-lg shrink-0" />
           <h2 className="text-slate-900 text-base font-bold tracking-tight">TailorCV</h2>
         </div>
         <button

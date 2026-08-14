@@ -5,7 +5,7 @@ extension with no backend, so contributing is just a normal front-end workflow.
 
 ## Setup
 
-Requires Node.js 18+.
+Requires Node.js 20.16+ (Node.js 22 or 24 LTS is also supported).
 
 ```bash
 npm install
@@ -21,10 +21,10 @@ rebuilds.
 ```bash
 npm run typecheck   # must pass
 npm run build       # must succeed
-npm run test:e2e    # Playwright E2E (optional locally; needs a Chromium build)
+npm run test:e2e    # complete Playwright suite; needs a Chromium build
 ```
 
-CI runs `typecheck` and `build` on every PR — please make sure both are green.
+Run all three checks before opening a PR. CI runs `typecheck` and `build` on every PR.
 
 ## Guidelines
 
@@ -33,8 +33,9 @@ CI runs `typecheck` and `build` on every PR — please make sure both are green.
   scope (see [PRIVACY.md](PRIVACY.md)).
 - Match the existing code style; keep diffs focused.
 - Adding support for a new job board? Update the `matches` globs in
-  [manifest.json](manifest.json) and the scraper in
-  [src/lib/job-scraper.ts](src/lib/job-scraper.ts).
+  [manifest.json](manifest.json), detection in
+  [src/lib/job-scraper.ts](src/lib/job-scraper.ts), and the adapter in
+  [src/lib/job-scrapers/boards.ts](src/lib/job-scrapers/boards.ts).
 
 ## Reporting bugs & ideas
 

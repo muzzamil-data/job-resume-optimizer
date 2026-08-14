@@ -194,6 +194,7 @@ export class AIService {
         lastError = err instanceof Error ? err : new Error(String(err));
         const isJsonError =
           lastError.message.includes('no JSON') ||
+          lastError.message.includes('structured JSON') ||
           lastError.message.includes('malformed JSON') ||
           lastError.message.includes('incomplete JSON') ||
           lastError.message.includes('not a JSON object');
@@ -451,7 +452,7 @@ STRICT RULES:
     const parsed = extractAndParseJSON(response);
     const errors = validateOptimizationResponse(parsed);
     if (errors.length > 0) {
-      console.warn('AI response validation warnings:', errors);
+      console.warn(`AI response validation reported ${errors.length} issue(s).`);
     }
 
     type RawExperienceItem = {

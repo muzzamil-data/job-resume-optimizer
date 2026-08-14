@@ -1,27 +1,58 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { JobScraper } from '../../lib/job-scraper';
+import { JobScraper, type JobScanMode } from '../../lib/job-scraper';
 import type { JobDescription } from '../../types';
 
-const URL_SCAN_DEBOUNCE_MS = 15_000;
+const AUTOMATIC_SCAN_DEBOUNCE_MS = 15_000;
+const SPA_RESCAN_DELAY_MS = 1_500;
+const URL_POLL_INTERVAL_MS = 750;
 
 type UseJobDetectionOptions = {
   onContextInvalidated(): void;
+  onScanError(message: string): void;
+  onClearError(): void;
 };
 
-export function useJobDetection({ onContextInvalidated }: UseJobDetectionOptions) {
+export function useJobDetection({
+  onContextInvalidated,
+  onScanError,
+  onClearError,
+}: UseJobDetectionOptions) {
   const [jobDescription, setJobDescription] = useState<JobDescription | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
-  const lastScanRef = useRef(0);
+  const lastAutomaticScanRef = useRef<{ url: string; timestamp: number } | null>(null);
+  const scanGenerationRef = useRef(0);
+  const activeScanRef = useRef<{ url: string; mode: JobScanMode } | null>(null);
 
-  const detectJobDescription = useCallback(async (useAI = true) => {
+  const detectJobDescription = useCallback(async (mode: JobScanMode = 'manual') => {
+    const url = window.location.href;
     const now = Date.now();
-    if (now - lastScanRef.current < URL_SCAN_DEBOUNCE_MS) return;
-    lastScanRef.current = now;
+    const lastAutomaticScan = lastAutomaticScanRef.current;
+    if (
+      mode === 'automatic' &&
+      lastAutomaticScan?.url === url &&
+      now - lastAutomaticScan.timestamp < AUTOMATIC_SCAN_DEBOUNCE_MS
+    ) return;
+    if (activeScanRef.current?.url === url && activeScanRef.current.mode === mode) return;
+
+    if (mode === 'automatic') lastAutomaticScanRef.current = { url, timestamp: now };
+    const generation = ++scanGenerationRef.current;
+    activeScanRef.current = { url, mode };
     setIsDetecting(true);
+    if (mode === 'manual') {
+      setJobDescription(null);
+      onClearError();
+    }
     try {
-      const job = await new JobScraper().scrapeCurrentPage(useAI);
-      if (job) setJobDescription(job);
+      const job = await new JobScraper().scrapeCurrentPage(mode);
+      if (generation !== scanGenerationRef.current || window.location.href !== url) return;
+      if (job) {
+        setJobDescription(job);
+      } else if (mode === 'manual') {
+        setJobDescription(null);
+        onScanError('No recognizable job description was found. Try Paste JD to add it manually.');
+      }
     } catch (error) {
+      if (generation !== scanGenerationRef.current || window.location.href !== url) return;
       try {
         if (!chrome.runtime?.id) {
           onContextInvalidated();
@@ -31,18 +62,30 @@ export function useJobDetection({ onContextInvalidated }: UseJobDetectionOptions
         onContextInvalidated();
         return;
       }
-      console.error('Failed to detect job:', error);
+      const message = error instanceof Error ? error.message : 'Job scanning failed. Please try again.';
+      onScanError(message);
+      console.error('Job detection failed.');
     } finally {
-      setIsDetecting(false);
+      if (generation === scanGenerationRef.current) {
+        activeScanRef.current = null;
+        setIsDetecting(false);
+      }
     }
-  }, [onContextInvalidated]);
+  }, [onClearError, onContextInvalidated, onScanError]);
 
   useEffect(() => {
     let lastUrl = window.location.href;
+    let rescanTimeout: ReturnType<typeof setTimeout> | undefined;
     const checkUrl = () => {
       if (window.location.href !== lastUrl) {
         lastUrl = window.location.href;
+        scanGenerationRef.current += 1;
+        activeScanRef.current = null;
+        setIsDetecting(false);
         setJobDescription(null);
+        onClearError();
+        if (rescanTimeout) clearTimeout(rescanTimeout);
+        rescanTimeout = setTimeout(() => detectJobDescription('automatic'), SPA_RESCAN_DELAY_MS);
       }
     };
 
@@ -52,11 +95,14 @@ export function useJobDetection({ onContextInvalidated }: UseJobDetectionOptions
       observer.observe(titleElement, { subtree: true, childList: true, characterData: true });
     }
     window.addEventListener('popstate', checkUrl);
+    const urlPoll = setInterval(checkUrl, URL_POLL_INTERVAL_MS);
     return () => {
       observer.disconnect();
       window.removeEventListener('popstate', checkUrl);
+      clearInterval(urlPoll);
+      if (rescanTimeout) clearTimeout(rescanTimeout);
     };
-  }, []);
+  }, [detectJobDescription, onClearError]);
 
   return {
     jobDescription,

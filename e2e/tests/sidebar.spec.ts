@@ -11,7 +11,7 @@ import { openJobPage, openSidebar } from '../helpers/sidebar';
 test.describe('Sidebar shell', () => {
   test.beforeEach(async ({ extensionWorker }) => {
     await extensionWorker.evaluate(
-      () => new Promise<void>(resolve => chrome.storage.local.clear(() => resolve())),
+      () => Promise.all([chrome.storage.local.clear(), chrome.storage.session.clear()]).then(() => undefined),
     );
   });
 

@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import Sidebar from './sidebar';
 import inlineCss from '../styles/globals.css?inline';
+import indicatorLogoUrl from '../../icons/logo32.png?inline';
 
 let hostElement: HTMLDivElement | null = null;
 let shadowContainer: HTMLDivElement | null = null;
@@ -124,23 +125,12 @@ const showJobPageIndicator = () => {
     gap: 8px;
     transition: transform 0.2s;
   `;
-  const svgNS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('width', '20'); svg.setAttribute('height', '20');
-  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'none');
-  svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '2');
-  const pathEl = document.createElementNS(svgNS, 'path');
-  pathEl.setAttribute('d', 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z');
-  const polyEl = document.createElementNS(svgNS, 'polyline');
-  polyEl.setAttribute('points', '14 2 14 8 20 8');
-  const line1 = document.createElementNS(svgNS, 'line');
-  line1.setAttribute('x1', '16'); line1.setAttribute('y1', '13');
-  line1.setAttribute('x2', '8'); line1.setAttribute('y2', '13');
-  const line2 = document.createElementNS(svgNS, 'line');
-  line2.setAttribute('x1', '16'); line2.setAttribute('y1', '17');
-  line2.setAttribute('x2', '8'); line2.setAttribute('y2', '17');
-  svg.append(pathEl, polyEl, line1, line2);
-  indicator.append(svg, document.createTextNode(' TailorCV — Optimize for This Job'));
+  const logo = document.createElement('img');
+  logo.src = indicatorLogoUrl;
+  logo.alt = '';
+  logo.setAttribute('aria-hidden', 'true');
+  logo.style.cssText = 'width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0;';
+  indicator.append(logo, document.createTextNode('TailorCV — Optimize for This Job'));
 
   indicator.addEventListener('mouseenter', () => { indicator.style.transform = 'scale(1.05)'; });
   indicator.addEventListener('mouseleave', () => { indicator.style.transform = 'scale(1)'; });

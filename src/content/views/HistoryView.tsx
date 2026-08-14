@@ -9,8 +9,16 @@ const STATUS_OPTIONS: { value: 'applied' | 'interviewing' | 'accepted' | 'reject
   { value: 'rejected',     label: 'Rejected',      color: 'bg-red-100 text-red-700 border-red-200' },
 ];
 
-function formatDate(date: Date | string): string {
+function dateTimestamp(date: string | null): number {
+  if (!date) return Number.NEGATIVE_INFINITY;
+  const timestamp = new Date(date).getTime();
+  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
+}
+
+export function formatApplicationDate(date: string | null): string {
+  if (!date) return 'Date unavailable';
   const d = new Date(date);
+  if (!Number.isFinite(d.getTime())) return 'Date unavailable';
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
@@ -19,7 +27,7 @@ export const HistoryView: React.FC = () => {
   const [updating, setUpdating] = React.useState<string | null>(null);
 
   const sorted = [...applications].sort(
-    (a, b) => new Date(b.appliedAt).getTime() - new Date(a.appliedAt).getTime()
+    (a, b) => dateTimestamp(b.appliedAt) - dateTimestamp(a.appliedAt)
   );
 
   const handleStatus = async (id: string, status: 'applied' | 'interviewing' | 'accepted' | 'rejected') => {
@@ -54,7 +62,7 @@ export const HistoryView: React.FC = () => {
                   <p className="text-sm font-bold text-slate-900 truncate">{app.jobTitle}</p>
                   <p className="text-sm text-slate-500 truncate">{app.company}</p>
                 </div>
-                <span className="text-xs text-slate-400 shrink-0 pt-0.5">{formatDate(app.appliedAt)}</span>
+                <span className="text-xs text-slate-400 shrink-0 pt-0.5">{formatApplicationDate(app.appliedAt)}</span>
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">

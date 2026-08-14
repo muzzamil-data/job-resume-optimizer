@@ -4,7 +4,7 @@ export interface Resume {
   fileType: 'pdf' | 'docx';
   content: string;
   parsedData: ParsedResume;
-  uploadedAt: Date;
+  uploadedAt: string | null;
 }
 
 export interface ParsedResume {
@@ -67,7 +67,7 @@ export interface OptimizedResume {
   scoring?: ATSScoring;
   gaps?: string[];
   recommendations?: string[];
-  createdAt: Date;
+  createdAt: string | null;
 }
 
 export interface KeywordMatch {
@@ -81,25 +81,27 @@ export interface CoverLetter {
   jobDescriptionUrl: string;
   content: string;
   tone: 'professional' | 'enthusiastic' | 'technical' | 'creative';
-  createdAt: Date;
+  createdAt: string | null;
 }
 
 /**
  * Bring-your-own-key provider configuration.
  * Stored only in chrome.storage.local on the user's machine and sent directly
- * to the OpenAI-compatible endpoint the user configures — never to any server
+ * to the configured Anthropic or OpenAI-compatible endpoint — never to any server
  * of ours (there is no server).
  */
 export interface ApiConfig {
-  baseUrl: string;   // e.g. https://api.openai.com/v1 or https://openrouter.ai/api/v1
+  baseUrl: string;   // e.g. https://api.anthropic.com/v1 or https://api.openai.com/v1
   apiKey: string;    // the user's own key
-  model: string;     // e.g. gpt-4o-mini, anthropic/claude-haiku-4-5, llama-3.3-70b
+  model: string;     // e.g. claude-sonnet-4-6, gpt-4o, llama-3.3-70b
 }
 
 export interface UserSettings {
   defaultTone: CoverLetter['tone'];
   autoDetectJob: boolean;
   showATSScore: boolean;
+  onboardingCompleted?: boolean;
+  rememberApiKey?: boolean;
 }
 
 export interface ApplicationRecord {
@@ -107,7 +109,7 @@ export interface ApplicationRecord {
   jobTitle: string;
   company: string;
   url: string;
-  appliedAt: Date;
+  appliedAt: string | null;
   resumeId: string;
   coverLetterId?: string;
   status: 'applied' | 'interviewing' | 'rejected' | 'accepted';

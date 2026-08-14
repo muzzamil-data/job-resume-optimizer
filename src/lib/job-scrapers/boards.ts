@@ -48,12 +48,37 @@ export class BoardScrapers {
     return this.context.extractKeywords(text);
   }
 
+  private getLinkedInPageTitle(): { title: string | null; company: string | null } {
+    const parts = String(document.title || '')
+      .split('|')
+      .map(part => part.trim())
+      .filter(Boolean);
+    if (parts.length < 2 || !parts.some(part => /^linkedin$/i.test(part))) {
+      return { title: null, company: null };
+    }
+    return { title: parts[0] || null, company: parts[1] || null };
+  }
+
+  private getLinkedInDescription(): string | null {
+    const heading = Array.from(document.querySelectorAll('h1, h2, h3'))
+      .find(element => element.textContent?.trim().toLowerCase() === 'about the job');
+    let container = heading?.parentElement ?? null;
+    while (container) {
+      const text = container.textContent?.trim() || '';
+      if (text.length >= 200) return text.replace(/^about the job\s*/i, '').trim();
+      container = container.parentElement;
+    }
+    return null;
+  }
+
   scrapeLinkedIn(): Partial<JobDescription> | null {
     if (!window.location.hostname.includes('linkedin.com')) return null;
     try {
       // Expand truncated description — LinkedIn hides it behind "See more"
       const seeMore = document.querySelector<HTMLElement>(
         'button.jobs-description__footer-button, ' +
+        'button[aria-label*="Show more"], ' +
+        'button[aria-label*="See more"], ' +
         '[aria-label="Click to see more description"], ' +
         '.jobs-description__content button[aria-expanded="false"], ' +
         '.jobs-description footer button, ' +
@@ -61,40 +86,45 @@ export class BoardScrapers {
       );
       if (seeMore) { seeMore.click(); }
 
+      const pageTitle = this.getLinkedInPageTitle();
       const title = this.getText([
         'h1.t-24',
         'h1.t-24.t-bold',
         '.job-details-jobs-unified-top-card__job-title h1',
         '.job-details-jobs-unified-top-card__job-title',
+        '.job-details-jobs-unified-top-card__job-title-link',
         '.jobs-unified-top-card__job-title h1',
         '.jobs-unified-top-card__job-title',
         '[data-test-job-title]',
         '.topcard__title',
         'h1',
-      ]);
+      ]) || pageTitle.title;
 
       const company = this.getText([
         '.job-details-jobs-unified-top-card__company-name a',
         '.job-details-jobs-unified-top-card__company-name',
+        '.job-details-jobs-unified-top-card__company-name-link',
         '.jobs-unified-top-card__company-name a',
         '.jobs-unified-top-card__company-name',
         '.topcard__org-name-link',
         '.topcard__flavor a',
         '[data-test-employer-name]',
-      ]);
+      ]) || pageTitle.company;
 
       const description = this.getText([
         '#job-details',
+        '[data-job-details]',
+        '.jobs-description-content__text',
         '.jobs-description__content .jobs-box__html-content',
         '.jobs-description__content',
         '.jobs-description',
         '.description__text',
         '.show-more-less-html__markup',
         '[data-job-description]',
-      ]);
+      ]) || this.getLinkedInDescription();
 
-      if (!title) return null;
-      const desc = description || 'See job posting for full description';
+      if (!title || !description || description.length < 100) return null;
+      const desc = description;
       return {
         title,
         company: company || this.getPageCompany(),
