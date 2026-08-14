@@ -2,6 +2,12 @@
 
 All notable changes to TailorCV are documented here.
 
+## [Unreleased]
+
+### Documentation
+
+- Added a privacy-safe visual guide covering extension installation, provider setup, résumé upload, job detection, manual job-description entry, and optimization.
+
 ## [1.1.0] - 2026-08-14
 
 ### Added
