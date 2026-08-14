@@ -15,7 +15,7 @@ This guide shows the complete first-use workflow. TailorCV stores your résumé 
 
 Visit a supported job page. Select the TailorCV launcher near the lower-right corner to open the sidebar.
 
-![TailorCV launcher on a supported job page](images/tailorcv-launcher.png)
+![TailorCV launcher on a supported job page](docs/images/tailorcv-launcher.png)
 
 ## 3. Configure your AI provider
 
@@ -23,23 +23,23 @@ Open **Settings**, choose Claude, ChatGPT, DeepSeek, Qwen, Grok, or Kimi, and en
 
 Use **Test connection** before saving. Clear **Remember API key on this device** if you want the key kept only until Chrome closes. TailorCV never displays a saved key on the Settings page.
 
-![TailorCV provider settings with the saved API key hidden](images/tailorcv-provider-settings.png)
+![TailorCV provider settings with the saved API key hidden](docs/images/tailorcv-provider-settings.png)
 
 ## 4. Upload your résumé
 
 Select **Upload Resume** or **Update**, then choose a PDF or DOCX file up to 10 MB. TailorCV parses and stores the résumé locally in the browser.
 
-![TailorCV résumé upload screen](images/tailorcv-upload-resume.png)
+![TailorCV résumé upload screen](docs/images/tailorcv-upload-resume.png)
 
 ## 5. Select a job description
 
 TailorCV automatically scans supported job pages using local page selectors. When a job is detected, review the title and company before optimizing.
 
-![TailorCV detected-job panel and Optimize Resume action](images/tailorcv-job-detected.png)
+![TailorCV detected-job panel and Optimize Resume action](docs/images/tailorcv-job-detected.png)
 
 If detection does not find the posting, select **Scan Page** to run a manual scan. You can always use **Paste JD** and enter the job title, company, and full description yourself.
 
-![TailorCV manual job-description form](images/tailorcv-paste-job.png)
+![TailorCV manual job-description form](docs/images/tailorcv-paste-job.png)
 
 ## 6. Optimize and export
 
@@ -56,4 +56,4 @@ If detection does not find the posting, select **Scan Page** to run a manual sca
 - Manual AI scan fallback may send up to 5,000 characters of visible page text.
 - JSON backups exclude API keys.
 
-See [PRIVACY.md](../PRIVACY.md) for the complete data-handling explanation.
+See [PRIVACY.md](PRIVACY.md) for the complete data-handling explanation.
