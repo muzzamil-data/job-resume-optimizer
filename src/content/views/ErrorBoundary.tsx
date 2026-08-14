@@ -20,9 +20,9 @@ export class ErrorBoundary extends Component<
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
-  componentDidCatch(error: Error) {
+  componentDidCatch() {
     if (isContextInvalidated()) return;
-    console.error('[ErrorBoundary]', error.message);
+    console.error('[ErrorBoundary] Sidebar rendering failed.');
   }
   render() {
     if (this.state.error) {

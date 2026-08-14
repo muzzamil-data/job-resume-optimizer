@@ -1,8 +1,8 @@
 import React from 'react';
 import { X, AlertTriangle, Clock, RefreshCw } from 'lucide-react';
+import logoUrl from '../../icons/logo48.png?inline';
 
 import { SidebarProvider, useSidebar } from './context';
-import { LOGO_DATA_URI } from './logo';
 import {
   ErrorBoundary,
   MainView,
@@ -17,6 +17,8 @@ interface SidebarProps {
   onClose: () => void;
 }
 
+const EXTENSION_VERSION = chrome.runtime.getManifest().version;
+
 const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { view, setView, isLoading, loadingMessage, error, setError, optimizedResume } = useSidebar();
 
@@ -25,7 +27,7 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       {/* Header */}
       <header className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white sticky top-0 z-10 shrink-0">
         <div className="flex items-center gap-2.5">
-          <img src={LOGO_DATA_URI} alt="TailorCV logo" className="w-9 h-9 rounded-lg shrink-0" />
+          <img src={logoUrl} alt="TailorCV logo" className="w-9 h-9 rounded-lg shrink-0" />
           <h2 className="text-slate-900 text-base font-bold tracking-tight">TailorCV</h2>
         </div>
         <button
@@ -99,7 +101,7 @@ const SidebarContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
       {/* Status bar */}
       <footer className="px-5 py-3 border-t border-slate-100 flex justify-between items-center text-sm text-slate-400 uppercase tracking-widest font-medium shrink-0">
-        <span>v1.0.0 &middot; AI-Powered</span>
+        <span>v{EXTENSION_VERSION} &middot; AI-Powered</span>
         <div role="status" className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
           System Ready

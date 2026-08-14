@@ -14,7 +14,7 @@ export function extractAndParseJSON(response: string): any {
   // Find the first '{' and extract via balanced brace counting
   const start = text.indexOf('{');
   if (start === -1) {
-    throw new Error('AI response contained no JSON object. Please try again.');
+    throw new Error('The model did not return structured JSON. Retry or choose another model.');
   }
 
   let depth = 0;
@@ -43,11 +43,11 @@ export function extractAndParseJSON(response: string): any {
         try {
           return JSON.parse(jsonStr);
         } catch {
-          throw new Error('AI returned malformed JSON. Please try again.');
+          throw new Error('The model returned malformed JSON. Retry or choose another model.');
         }
       }
     }
   }
 
-  throw new Error('AI returned incomplete JSON (unbalanced braces). Please try again.');
+  throw new Error('The model returned incomplete JSON. Retry or choose another model.');
 }

@@ -7,8 +7,8 @@ import { useSidebar } from '../context';
 
 export const MainView: React.FC = () => {
   const {
-    resume, jobDescription, isConfigured, isLoading, isDetecting,
-    setView, handleOptimize, detectJobDescription,
+    resume, jobDescription, isConfigured, onboardingCompleted, isLoading, isDetecting,
+    setView, handleOptimize, detectJobDescription, skipResumeOnboarding,
   } = useSidebar();
 
   const [showPreview, setShowPreview] = React.useState(false);
@@ -22,24 +22,53 @@ export const MainView: React.FC = () => {
 
   const canOptimize = !!(resume && jobDescription && isConfigured && !isLoading);
 
+  if (!onboardingCompleted && !isConfigured) {
+    return (
+      <section className="rounded-xl border border-primary/20 bg-primary/5 p-5 text-center space-y-4">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white text-primary shadow-sm">
+          <KeyRound size={22} aria-hidden="true" />
+        </div>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-primary">Step 1 of 2</p>
+          <h3 className="mt-1 text-base font-bold text-slate-900">Connect your AI provider</h3>
+          <p className="mt-1 text-sm leading-relaxed text-slate-500">
+            Choose a provider, add your API key, and test the connection. Your key stays in this browser.
+          </p>
+        </div>
+        <button onClick={() => setView('settings')} className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-white hover:bg-primary/90">
+          Open Settings
+        </button>
+      </section>
+    );
+  }
+
+  if (!onboardingCompleted && !resume) {
+    return (
+      <section className="rounded-xl border border-primary/20 bg-primary/5 p-5 text-center space-y-4">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white text-primary shadow-sm">
+          <FileText size={22} aria-hidden="true" />
+        </div>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-primary">Step 2 of 2</p>
+          <h3 className="mt-1 text-base font-bold text-slate-900">Add your resume</h3>
+          <p className="mt-1 text-sm leading-relaxed text-slate-500">
+            Upload your master resume now, or continue and add it later from the main screen.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <button onClick={() => setView('upload')} className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-white hover:bg-primary/90">
+            Upload Resume
+          </button>
+          <button onClick={skipResumeOnboarding} className="w-full py-2 text-sm font-semibold text-slate-500 hover:text-slate-700">
+            Do this later
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <>
-      {/* API key setup prompt */}
-      {!isConfigured && (
-        <button
-          onClick={() => setView('settings')}
-          className="w-full flex items-center gap-3 p-4 rounded-xl border border-primary/20 bg-primary/5 text-left hover:bg-primary/10 transition-colors"
-        >
-          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-white shadow-sm text-primary shrink-0">
-            <KeyRound size={18} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-slate-900">Add your API key to get started</p>
-            <p className="text-sm text-slate-500">Use your own OpenAI-compatible key — it stays on this device.</p>
-          </div>
-        </button>
-      )}
-
       {/* Resume section */}
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
