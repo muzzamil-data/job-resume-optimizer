@@ -53,7 +53,7 @@ Any endpoint that implements the OpenAI `POST /chat/completions` API will work.
 4. Click **Optimize Resume**. Review the ATS score, gaps, and quick wins.
 5. Optionally generate a cover letter, then export either as PDF or DOCX.
 
-For illustrated installation, provider setup, résumé upload, scanning, and optimization steps, see the [Getting Started guide](docs/GETTING_STARTED.md).
+For illustrated installation, provider setup, résumé upload, scanning, and optimization steps, see [GETTING_STARTED.md](GETTING_STARTED.md).
 
 ## Development
 
