@@ -6,7 +6,7 @@ All notable changes to TailorCV are documented here.
 
 ### Documentation
 
-- Added a privacy-safe visual guide covering extension installation, provider setup, résumé upload, job detection, manual job-description entry, and optimization. The guide is available as a top-level `GETTING_STARTED.md` document for easier discovery on GitHub.
+- Added a privacy-safe visual guide covering extension installation, provider setup, resume upload, job detection, manual job-description entry, and optimization. The guide is available as a top-level `GETTING_STARTED.md` document for easier discovery on GitHub.
 - Redesigned the GitHub README with project branding, quick links, status badges, product screenshots, clearer feature and privacy summaries, and added a top-level security policy.
 
 ## [1.1.0] - 2026-08-14

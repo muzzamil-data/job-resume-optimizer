@@ -13,7 +13,7 @@ Security fixes are applied to the latest released version of TailorCV.
 
 Please report security issues privately through the repository's [GitHub security advisories](https://github.com/muzzamil-data/job-resume-optimizer/security/advisories/new).
 
-Include the affected version, a clear reproduction, the potential impact, and any suggested mitigation. Do not include real API keys, résumés, personal information, or other secrets in the report.
+Include the affected version, a clear reproduction, the potential impact, and any suggested mitigation. Do not include real API keys, resumes, personal information, or other secrets in the report.
 
 Please do not open a public issue for an unpatched vulnerability. Maintainers will acknowledge a report when possible, investigate it, and coordinate disclosure after a fix is available.
 

@@ -1,7 +1,7 @@
 <div align="center">
   <img src="icons/logo128.png" alt="TailorCV logo" width="92" height="92">
   <h1>TailorCV</h1>
-  <p><strong>Tailor your résumé to any job posting with your own AI provider key.</strong></p>
+  <p><strong>Tailor your resume to any job posting with your own AI provider key.</strong></p>
   <p>Open source · No account · No backend · No subscription</p>
 
   <p>
@@ -24,7 +24,7 @@
   <img src="docs/images/tailorcv-provider-settings.png" alt="TailorCV provider settings" width="420">
 </p>
 
-TailorCV is a local-first Chrome extension that detects a job description, optimizes your résumé for it, calculates an ATS score, drafts a cover letter, and exports the result as PDF or DOCX. AI requests go directly from the extension to the endpoint you configure.
+TailorCV is a local-first Chrome extension that detects a job description, optimizes your resume for it, calculates an ATS score, drafts a cover letter, and exports the result as PDF or DOCX. AI requests go directly from the extension to the endpoint you configure.
 
 ## Why TailorCV?
 
@@ -33,8 +33,8 @@ TailorCV is a local-first Chrome extension that detects a job description, optim
 | Job-aware optimization | Scan supported job boards or paste any job description manually. |
 | Local ATS analysis | Keyword coverage, title match, experience relevance, achievements, and education checks. |
 | Bring your own key | Use Claude, ChatGPT, DeepSeek, Qwen, Grok, Kimi, or a compatible custom endpoint. |
-| Local-first privacy | Résumés and history stay in browser storage; there is no TailorCV server or telemetry. |
-| Practical exports | Download optimized résumés and cover letters as PDF or DOCX. |
+| Local-first privacy | Resumes and history stay in browser storage; there is no TailorCV server or telemetry. |
+| Practical exports | Download optimized resumes and cover letters as PDF or DOCX. |
 | Open source | Inspect the prompts, storage, provider calls, and document generation yourself. |
 
 ## Quick start
@@ -43,7 +43,7 @@ TailorCV is a local-first Chrome extension that detects a job description, optim
 2. Open `chrome://extensions`, enable **Developer mode**, and select **Load unpacked**.
 3. Choose the extracted extension folder or the generated `dist/` folder.
 4. Open a supported job page and select the TailorCV launcher.
-5. Configure your provider, upload your résumé, and select **Optimize Resume**.
+5. Configure your provider, upload your resume, and select **Optimize Resume**.
 
 See [GETTING_STARTED.md](GETTING_STARTED.md) for the complete illustrated walkthrough.
 
@@ -55,12 +55,12 @@ See [GETTING_STARTED.md](GETTING_STARTED.md) for the complete illustrated walkth
 
 ## Features
 
-- One-click résumé optimization for LinkedIn, Indeed, Glassdoor, Greenhouse, Lever, Workday, and other supported boards.
+- One-click resume optimization for LinkedIn, Indeed, Glassdoor, Greenhouse, Lever, Workday, and other supported boards.
 - Reliable manual scanning and **Paste JD** fallback when a page cannot be recognized.
 - Local ATS scoring with gaps and quick-win recommendations.
 - Cover-letter generation in four tones.
-- PDF and DOCX résumé and cover-letter exports.
-- First-run guidance for provider configuration and résumé upload.
+- PDF and DOCX resume and cover-letter exports.
+- First-run guidance for provider configuration and resume upload.
 - Session-only API key storage when **Remember API key on this device** is disabled.
 - Validated local backup and restore; exported backups never contain API keys.
 
@@ -80,7 +80,7 @@ Qwen keys and endpoints are region-specific. If the preset does not match your a
 ## Privacy by design
 
 - Automatic job scanning uses local DOM selectors and does not call an AI provider.
-- Before résumé optimization, TailorCV redacts your name, email, and phone number locally and restores them afterward.
+- Before resume optimization, TailorCV redacts your name, email, and phone number locally and restores them afterward.
 - Manual AI scanning may send up to 5,000 characters of visible page text only when you request it.
 - TailorCV has no backend, account system, analytics, or telemetry.
 - Your API key can be remembered locally or kept only for the current Chrome session.
@@ -105,7 +105,7 @@ Use `npm run dev` for watch builds into `dist/`. Reload the unpacked extension a
 - **Manifest V3 + React + TypeScript** — the sidebar runs inside an isolated Shadow DOM.
 - **Content script** — detects supported pages and coordinates scanning in [`src/content`](src/content).
 - **Service worker** — builds prompts, parses documents locally, and contacts only the configured provider endpoint.
-- **Local libraries** — ATS scoring, résumé parsing, job-board adapters, storage, and document generation live in [`src/lib`](src/lib).
+- **Local libraries** — ATS scoring, resume parsing, job-board adapters, storage, and document generation live in [`src/lib`](src/lib).
 
 ## Community
 

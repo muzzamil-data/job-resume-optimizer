@@ -1,6 +1,6 @@
 # Getting Started with TailorCV
 
-This guide shows the complete first-use workflow. TailorCV stores your résumé and history in Chrome extension storage and sends AI requests only to the provider endpoint you configure.
+This guide shows the complete first-use workflow. TailorCV stores your resume and history in Chrome extension storage and sends AI requests only to the provider endpoint you configure.
 
 ## 1. Install the extension
 
@@ -25,11 +25,11 @@ Use **Test connection** before saving. Clear **Remember API key on this device**
 
 ![TailorCV provider settings with the saved API key hidden](docs/images/tailorcv-provider-settings.png)
 
-## 4. Upload your résumé
+## 4. Upload your resume
 
-Select **Upload Resume** or **Update**, then choose a PDF or DOCX file up to 10 MB. TailorCV parses and stores the résumé locally in the browser.
+Select **Upload Resume** or **Update**, then choose a PDF or DOCX file up to 10 MB. TailorCV parses and stores the resume locally in the browser.
 
-![TailorCV résumé upload screen](docs/images/tailorcv-upload-resume.png)
+![TailorCV resume upload screen](docs/images/tailorcv-upload-resume.png)
 
 ## 5. Select a job description
 
@@ -52,7 +52,7 @@ If detection does not find the posting, select **Scan Page** to run a manual sca
 ## Privacy reminder
 
 - Automatic job scanning stays local and does not call an AI provider.
-- Optimization sends a locally redacted résumé and the selected job description to your configured provider.
+- Optimization sends a locally redacted resume and the selected job description to your configured provider.
 - Manual AI scan fallback may send up to 5,000 characters of visible page text.
 - JSON backups exclude API keys.
 
