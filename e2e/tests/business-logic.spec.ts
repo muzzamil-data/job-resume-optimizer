@@ -4,6 +4,7 @@ import {
   calculateKeywordMatches,
 } from '../../src/lib/ats-scoring';
 import { extractAndParseJSON } from '../../src/lib/extract-json';
+import { normalizeResumeSpelling } from '../../src/lib/utils';
 import {
   callProvider,
   classifyProviderHttpError,
@@ -82,6 +83,13 @@ test.describe('AI JSON extraction', () => {
     expect(() => extractAndParseJSON('No structured response')).toThrow(/structured JSON/i);
     expect(() => extractAndParseJSON('{"value": }')).toThrow(/malformed JSON/i);
     expect(() => extractAndParseJSON('{"value": 1')).toThrow(/incomplete JSON/i);
+  });
+});
+
+test.describe('generated copy conventions', () => {
+  test('normalizes accented resume spellings while preserving capitalization and plurals', () => {
+    expect(normalizeResumeSpelling('Résumé, résumé, RÉSUMÉS, and re\u0301sume\u0301s'))
+      .toBe('Resume, resume, RESUMES, and resumes');
   });
 });
 

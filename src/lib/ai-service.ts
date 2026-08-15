@@ -1,5 +1,10 @@
 import type { ParsedResume, JobDescription, KeywordMatch, ATSScoring } from '../types';
-import { isContextInvalidatedError, EXTENSION_RELOAD_MSG, sanitizeUserContent } from './utils';
+import {
+  isContextInvalidatedError,
+  EXTENSION_RELOAD_MSG,
+  normalizeResumeSpelling,
+  sanitizeUserContent,
+} from './utils';
 import { extractAndParseJSON } from './extract-json';
 import { calculateATSScoreWithBreakdown, calculateKeywordMatches } from './ats-scoring';
 import type { AIMessage, BackgroundRequest, BackgroundResponse } from '../types/runtime-messages';
@@ -264,7 +269,7 @@ export class AIService {
     // Collapse 3+ consecutive blank lines into 2
     letter = letter.replace(/\n{3,}/g, '\n\n');
 
-    return letter.trim();
+    return normalizeResumeSpelling(letter).trim();
   }
 
   private truncate(text: string, maxChars: number): string {
@@ -449,7 +454,11 @@ STRICT RULES:
     recommendations?: string[];
     coverLetter?: string;
   } {
-    const parsed = extractAndParseJSON(response);
+    // Parsing resolves JSON escapes; serializing gives us one safe pass over
+    // every provider-generated string without changing the response shape.
+    const parsed = JSON.parse(
+      normalizeResumeSpelling(JSON.stringify(extractAndParseJSON(response))),
+    );
     const errors = validateOptimizationResponse(parsed);
     if (errors.length > 0) {
       console.warn(`AI response validation reported ${errors.length} issue(s).`);

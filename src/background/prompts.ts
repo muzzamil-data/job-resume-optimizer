@@ -112,6 +112,7 @@ FORBIDDEN — never use these words or constructs:
 
 REQUIRED:
 - Plain human language — write like a real person describing their work, not a job posting
+- Use the spelling "resume" only. Never use "résumé" or "résumés".
 - Short bullets — prefer two short clear sentences over one long clause-heavy sentence
 - Only include metrics the candidate can verify and defend in an interview
 - Spell out acronyms at least once

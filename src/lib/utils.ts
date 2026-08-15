@@ -22,7 +22,18 @@ export function generateFilename(type: 'resume' | 'cover-letter', jobTitle: stri
   return `${prefix}_${sanitize(company)}_${sanitize(jobTitle)}_${Date.now()}`;
 }
 
+/** Use the project's preferred unaccented English spelling in generated copy. */
+export function normalizeResumeSpelling(text: string): string {
+  return text.normalize('NFC').replace(/résumé(s)?/giu, (match, plural: string | undefined) => {
+    const replacement = plural ? 'resumes' : 'resume';
+    if (match === match.toUpperCase()) return replacement.toUpperCase();
+    if (match[0] === match[0].toUpperCase()) {
+      return replacement[0].toUpperCase() + replacement.slice(1);
+    }
+    return replacement;
+  });
+}
+
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
-
